@@ -95,17 +95,17 @@ dmg:
 # 压缩配置
 compression: normal
 
-# 启用 native 依赖重新编译（sqlite3 需要针对 Electron 编译）
-npmRebuild: true
+# sql.js 是纯 JavaScript/WASM 实现，无需原生编译
+npmRebuild: false
 
 # ASAR 配置
 # 确保 server 和 lib 目录可以被正确访问
 # 注意：asar 中的文件可以通过 require() 和 fs.readFileSync() 访问
-# 但如果需要执行二进制文件或需要原生模块，需要 unpack
+# 但如果需要执行二进制文件，需要 unpack
 asar: true
 asarUnpack:
-  # better-sqlite3 原生模块 - 必须解压才能正常加载
-  - "**/better-sqlite3/build/Release/*.node"
+  # sql.js WASM 文件 - 需要解压才能正常加载
+  - "**/sql.js/dist/sql-wasm.wasm"
   # happy-cli 二进制工具 - 需要解压才能执行
   - "lib/happy-cli/tools/**/*"
 

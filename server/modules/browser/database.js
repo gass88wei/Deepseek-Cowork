@@ -1,17 +1,21 @@
 /**
  * Database module for browser control service
- * Using better-sqlite3 for synchronous, high-performance SQLite operations
+ * Using sql.js for cross-platform SQLite operations (no native compilation required)
  */
 
-const BetterSqlite3 = require('better-sqlite3');
+const initSqlJs = require('sql.js');
 const Logger = require('./logger');
+const fs = require('fs');
 const path = require('path');
 
 class Database {
   constructor(dbName = 'browser_data.db') {
     this.dbName = dbName;
     this.db = null;
+    this.SQL = null;
     this.checkpointInterval = null;
+    this.saveInterval = null;
+    this.isDirty = false; // Track if database has unsaved changes
   }
 
   /**
@@ -20,12 +24,24 @@ class Database {
    */
   async connect() {
     try {
-      // better-sqlite3 is synchronous, but we wrap in async for API compatibility
-      this.db = new BetterSqlite3(this.dbName, {
-        verbose: Logger.debug.bind(Logger)
-      });
+      // Initialize sql.js
+      this.SQL = await initSqlJs();
       
-      Logger.info(`Connected to database: ${this.dbName}`);
+      // Try to load existing database file
+      if (fs.existsSync(this.dbName)) {
+        try {
+          const fileBuffer = fs.readFileSync(this.dbName);
+          this.db = new this.SQL.Database(fileBuffer);
+          Logger.info(`Loaded existing database: ${this.dbName}`);
+        } catch (loadErr) {
+          Logger.warn(`Failed to load existing database, creating new one: ${loadErr.message}`);
+          this.db = new this.SQL.Database();
+        }
+      } else {
+        this.db = new this.SQL.Database();
+        Logger.info(`Created new database: ${this.dbName}`);
+      }
+      
       await this.configureDatabase();
     } catch (err) {
       Logger.error(`Database connection error: ${err.message}`);
@@ -39,35 +55,19 @@ class Database {
    */
   async configureDatabase() {
     try {
-      // Enable WAL mode
-      this.db.pragma('journal_mode = WAL');
-      Logger.info('WAL mode enabled');
-
-      // Set sync mode to NORMAL (balance performance and safety)
-      this.db.pragma('synchronous = NORMAL');
+      // Enable foreign key constraints
+      this.db.run('PRAGMA foreign_keys = ON');
       
-      // Set cache size (in pages, default page size 4KB, setting to 20MB here)
-      this.db.pragma('cache_size = -20000');
+      // Set cache size
+      this.db.run('PRAGMA cache_size = -20000');
       
       // Set temp storage to memory
-      this.db.pragma('temp_store = MEMORY');
-      
-      // Set mmap size (256MB)
-      this.db.pragma('mmap_size = 268435456');
-      
-      // Enable foreign key constraints
-      this.db.pragma('foreign_keys = ON');
-      
-      // Set busy timeout (5 seconds)
-      this.db.pragma('busy_timeout = 5000');
-      
-      // Set WAL auto checkpoint (every 1000 pages)
-      this.db.pragma('wal_autocheckpoint = 1000');
+      this.db.run('PRAGMA temp_store = MEMORY');
 
       Logger.info('Database performance configuration complete');
       
-      // Start periodic checkpoint (every 30 minutes)
-      this.startPeriodicCheckpoint();
+      // Start periodic save (every 30 seconds)
+      this.startPeriodicSave();
     } catch (err) {
       Logger.error(`Database configuration error: ${err.message}`);
       throw err;
@@ -75,34 +75,61 @@ class Database {
   }
 
   /**
-   * Start periodic WAL checkpoint
-   * @param {number} intervalMinutes Checkpoint interval (minutes)
+   * Start periodic database save to file
+   * @param {number} intervalSeconds Save interval (seconds)
    */
-  startPeriodicCheckpoint(intervalMinutes = 30) {
-    if (this.checkpointInterval) {
-      clearInterval(this.checkpointInterval);
+  startPeriodicSave(intervalSeconds = 30) {
+    if (this.saveInterval) {
+      clearInterval(this.saveInterval);
     }
     
-    this.checkpointInterval = setInterval(async () => {
-      try {
-        await this.checkpoint('PASSIVE');
-        Logger.info('Periodic WAL checkpoint completed');
-      } catch (err) {
-        Logger.error(`Periodic WAL checkpoint error: ${err.message}`);
+    this.saveInterval = setInterval(() => {
+      if (this.isDirty) {
+        try {
+          this.saveToFile();
+          Logger.debug('Periodic database save completed');
+        } catch (err) {
+          Logger.error(`Periodic database save error: ${err.message}`);
+        }
       }
-    }, intervalMinutes * 60 * 1000);
+    }, intervalSeconds * 1000);
     
-    Logger.info(`Started periodic WAL checkpoint, interval: ${intervalMinutes} minutes`);
+    Logger.info(`Started periodic database save, interval: ${intervalSeconds} seconds`);
   }
 
   /**
-   * Stop periodic WAL checkpoint
+   * Stop periodic database save
    */
-  stopPeriodicCheckpoint() {
-    if (this.checkpointInterval) {
-      clearInterval(this.checkpointInterval);
-      this.checkpointInterval = null;
-      Logger.info('Stopped periodic WAL checkpoint');
+  stopPeriodicSave() {
+    if (this.saveInterval) {
+      clearInterval(this.saveInterval);
+      this.saveInterval = null;
+      Logger.info('Stopped periodic database save');
+    }
+  }
+
+  /**
+   * Save database to file
+   */
+  saveToFile() {
+    if (!this.db) return;
+    
+    try {
+      const data = this.db.export();
+      const buffer = Buffer.from(data);
+      
+      // Ensure directory exists
+      const dir = path.dirname(this.dbName);
+      if (dir && dir !== '.' && !fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      
+      fs.writeFileSync(this.dbName, buffer);
+      this.isDirty = false;
+      Logger.debug(`Database saved to: ${this.dbName}`);
+    } catch (err) {
+      Logger.error(`Failed to save database: ${err.message}`);
+      throw err;
     }
   }
 
@@ -206,7 +233,7 @@ class Database {
       `CREATE INDEX IF NOT EXISTS idx_cookies_name ON cookies(name)`
     ];
 
-    // Triggers need to be created separately (better-sqlite3 doesn't support them in transactions well)
+    // Triggers for sql.js
     const triggerQueries = [
       // Create trigger to auto-update html_content updated_at
       `CREATE TRIGGER IF NOT EXISTS update_html_content_timestamp 
@@ -234,12 +261,22 @@ class Database {
     ];
 
     try {
-      await this.runTransaction(queries);
+      // Execute table creation queries
+      for (const query of queries) {
+        try {
+          this.db.run(query);
+        } catch (err) {
+          // Ignore "already exists" errors
+          if (!err.message.includes('already exists')) {
+            Logger.warn(`Table creation warning: ${err.message}`);
+          }
+        }
+      }
       
-      // Create triggers outside transaction
+      // Create triggers
       for (const trigger of triggerQueries) {
         try {
-          this.db.exec(trigger);
+          this.db.run(trigger);
         } catch (err) {
           // Ignore "trigger already exists" errors
           if (!err.message.includes('already exists')) {
@@ -247,6 +284,9 @@ class Database {
           }
         }
       }
+      
+      this.isDirty = true;
+      this.saveToFile();
       
       Logger.info('Database initialized successfully');
       
@@ -266,22 +306,31 @@ class Database {
    */
   async run(query, params = []) {
     try {
-      // Handle transaction control statements with exec() instead of prepare()
+      // Handle transaction control statements
       const upperQuery = query.trim().toUpperCase();
       if (upperQuery === 'BEGIN TRANSACTION' || 
           upperQuery === 'BEGIN' ||
           upperQuery === 'COMMIT' || 
           upperQuery === 'ROLLBACK') {
-        this.db.exec(query);
+        this.db.run(query);
         return { lastID: null, changes: 0 };
       }
       
-      const stmt = this.db.prepare(query);
-      const result = stmt.run(...params);
+      this.db.run(query, params);
+      this.isDirty = true;
       
-      // Convert lastInsertRowid to string to avoid int32 serialization issues
-      const lastID = result.lastInsertRowid != null ? String(result.lastInsertRowid) : null;
-      return { lastID, changes: result.changes };
+      // Get last insert rowid and changes
+      const lastIDResult = this.db.exec('SELECT last_insert_rowid() as lastID');
+      const changesResult = this.db.exec('SELECT changes() as changes');
+      
+      const lastID = lastIDResult.length > 0 && lastIDResult[0].values.length > 0 
+        ? String(lastIDResult[0].values[0][0]) 
+        : null;
+      const changes = changesResult.length > 0 && changesResult[0].values.length > 0 
+        ? changesResult[0].values[0][0] 
+        : 0;
+      
+      return { lastID, changes };
     } catch (err) {
       Logger.error(`Database execute error: ${err.message}`);
       throw err;
@@ -297,7 +346,16 @@ class Database {
   async get(query, params = []) {
     try {
       const stmt = this.db.prepare(query);
-      return stmt.get(...params);
+      stmt.bind(params);
+      
+      if (stmt.step()) {
+        const row = stmt.getAsObject();
+        stmt.free();
+        return row;
+      }
+      
+      stmt.free();
+      return undefined;
     } catch (err) {
       Logger.error(`Database get error: ${err.message}`);
       throw err;
@@ -313,7 +371,15 @@ class Database {
   async all(query, params = []) {
     try {
       const stmt = this.db.prepare(query);
-      return stmt.all(...params);
+      stmt.bind(params);
+      
+      const results = [];
+      while (stmt.step()) {
+        results.push(stmt.getAsObject());
+      }
+      
+      stmt.free();
+      return results;
     } catch (err) {
       Logger.error(`Database query error: ${err.message}`);
       throw err;
@@ -331,64 +397,61 @@ class Database {
       return;
     }
 
-    // better-sqlite3 transaction API
-    const transaction = this.db.transaction(() => {
+    try {
+      this.db.run('BEGIN TRANSACTION');
+      
       for (let i = 0; i < queries.length; i++) {
         const query = queries[i];
         const params = paramsArray[i] || [];
         
         try {
-          const stmt = this.db.prepare(query);
-          stmt.run(...params);
+          this.db.run(query, params);
           Logger.debug(`Query ${i + 1}/${queries.length} executed successfully`);
         } catch (err) {
           Logger.error(`Query ${i + 1}/${queries.length} execution error: ${err.message}`, { query, params });
-          throw err; // This will cause transaction rollback
+          throw err;
         }
       }
-    });
-
-    try {
-      transaction();
+      
+      this.db.run('COMMIT');
+      this.isDirty = true;
       Logger.debug(`Transaction completed successfully, executed ${queries.length} queries`);
     } catch (err) {
+      try {
+        this.db.run('ROLLBACK');
+      } catch (rollbackErr) {
+        Logger.error(`Rollback error: ${rollbackErr.message}`);
+      }
       Logger.error(`Transaction failed: ${err.message}`);
       throw err;
     }
   }
 
   /**
-   * Manually execute WAL checkpoint
-   * @param {string} mode Checkpoint mode: 'PASSIVE' (default), 'FULL', 'RESTART', 'TRUNCATE'
+   * Placeholder for WAL checkpoint (not applicable to sql.js, saves to file instead)
+   * @param {string} mode Checkpoint mode (ignored)
    * @returns {Promise<void>}
    */
   async checkpoint(mode = 'PASSIVE') {
     try {
-      this.db.pragma(`wal_checkpoint(${mode})`);
-      Logger.info(`WAL checkpoint completed (${mode} mode)`);
+      // sql.js doesn't support WAL mode, just save to file
+      this.saveToFile();
+      Logger.info(`Database saved (checkpoint ${mode} mode emulated)`);
     } catch (err) {
-      Logger.error(`WAL checkpoint execution error: ${err.message}`);
+      Logger.error(`Database save error: ${err.message}`);
       throw err;
     }
   }
 
   /**
-   * Get WAL mode status info
-   * @returns {Promise<Object>} WAL status info
+   * Get database info (for compatibility)
+   * @returns {Promise<Object>} Database info
    */
   async getWalInfo() {
-    try {
-      const journalMode = this.db.pragma('journal_mode', { simple: true });
-      const walInfo = this.db.pragma('wal_checkpoint');
-      
-      return {
-        journalMode: journalMode || 'unknown',
-        walInfo: walInfo || null
-      };
-    } catch (err) {
-      Logger.error(`Get WAL info error: ${err.message}`);
-      throw err;
-    }
+    return {
+      journalMode: 'memory', // sql.js is in-memory
+      walInfo: null
+    };
   }
 
   /**
@@ -398,21 +461,22 @@ class Database {
   async close() {
     if (this.db) {
       try {
-        // Stop periodic checkpoint
-        this.stopPeriodicCheckpoint();
+        // Stop periodic save
+        this.stopPeriodicSave();
         
-        // Execute WAL checkpoint before closing to ensure all data is written to main database file
+        // Save before closing
         try {
-          this.db.pragma('wal_checkpoint(TRUNCATE)');
-          Logger.info('WAL checkpoint completed');
+          this.saveToFile();
+          Logger.info('Final database save completed');
         } catch (err) {
-          Logger.warn(`WAL checkpoint warning: ${err.message}`);
+          Logger.warn(`Final database save warning: ${err.message}`);
         }
         
-        // Close database connection
+        // Close database
         this.db.close();
         Logger.info('Database connection closed');
         this.db = null;
+        this.SQL = null;
       } catch (err) {
         Logger.error(`Close database error: ${err.message}`);
         throw err;
@@ -463,7 +527,7 @@ class Database {
         
         // Create trigger separately
         try {
-          this.db.exec(`CREATE TRIGGER IF NOT EXISTS update_cookies_timestamp 
+          this.db.run(`CREATE TRIGGER IF NOT EXISTS update_cookies_timestamp 
            AFTER UPDATE ON cookies
            BEGIN
              UPDATE cookies SET updated_at = CURRENT_TIMESTAMP 
@@ -482,13 +546,25 @@ class Database {
       await this.migrateCookiesTable();
 
       // Check if websocket_clients table has client_type column
-      const tableInfo = this.db.pragma("table_info('websocket_clients')");
-      const clientTypeColumnExists = tableInfo.some(col => col.name === 'client_type');
+      const tableInfoResult = this.db.exec("PRAGMA table_info('websocket_clients')");
+      let clientTypeColumnExists = false;
+      
+      if (tableInfoResult.length > 0 && tableInfoResult[0].values) {
+        clientTypeColumnExists = tableInfoResult[0].values.some(row => row[1] === 'client_type');
+      }
 
       if (!clientTypeColumnExists) {
         Logger.info('Detected websocket_clients table missing client_type column, adding...');
-        this.db.exec(`ALTER TABLE websocket_clients ADD COLUMN client_type TEXT DEFAULT 'extension'`);
-        Logger.info('client_type column added to websocket_clients table successfully');
+        try {
+          this.db.run(`ALTER TABLE websocket_clients ADD COLUMN client_type TEXT DEFAULT 'extension'`);
+          this.isDirty = true;
+          Logger.info('client_type column added to websocket_clients table successfully');
+        } catch (err) {
+          // Column might already exist
+          if (!err.message.includes('duplicate column')) {
+            Logger.warn(`Add column warning: ${err.message}`);
+          }
+        }
       }
 
       Logger.info('Database table check completed');
@@ -532,12 +608,11 @@ class Database {
           
           await this.run(migrationQuery);
           
-          // Get number of migrated records
-          const result = await this.run('SELECT 1');
           Logger.info(`Cookie records migration completed`);
           
           // Delete old table
-          this.db.exec('DROP TABLE tab_cookies');
+          this.db.run('DROP TABLE tab_cookies');
+          this.isDirty = true;
           Logger.info('Old tab_cookies table deleted');
         }
       }

@@ -424,7 +424,7 @@ class TabsManager {
                 tab.id,
                 tab.url,
                 tab.title || '',
-                tab.is_active ? 1 : 0,  // Convert boolean to integer for better-sqlite3
+                tab.is_active ? 1 : 0,  // Convert boolean to integer for SQLite
                 tab.window_id || null,
                 tab.index_in_window || 0,
                 tab.favicon_url || null,
@@ -451,7 +451,7 @@ class TabsManager {
                   tab.id,
                   tab.url,
                   tab.title || '',
-                  tab.is_active ? 1 : 0,  // Convert boolean to integer for better-sqlite3
+                  tab.is_active ? 1 : 0,  // Convert boolean to integer for SQLite
                   tab.window_id || null,
                   newIndex,
                   tab.favicon_url || null,
