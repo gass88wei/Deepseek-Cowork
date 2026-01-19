@@ -108,6 +108,11 @@ asarUnpack:
   - "**/sql.js/dist/sql-wasm.wasm"
   # happy-cli 二进制工具 - 需要解压才能执行
   - "lib/happy-cli/tools/**/*"
+  # happy-coder 包 - daemon 命令需要从外部 Node.js 执行
+  - "node_modules/happy-coder/**/*"
+  # libsodium WASM 文件 - 加密功能需要
+  - "node_modules/libsodium-wrappers/**/*"
+  - "node_modules/libsodium/**/*"
 
 # 发布配置（如果需要自动发布到 GitHub Releases）
 # publish:

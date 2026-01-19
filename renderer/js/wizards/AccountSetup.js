@@ -110,8 +110,20 @@ class AccountSetup {
    * 绑定事件
    */
   bindEvents() {
+    console.log('[AccountSetup] bindEvents called');
+    console.log('[AccountSetup] btnCreateAccount element:', this.elements.btnCreateAccount);
+    console.log('[AccountSetup] btnAccountCreate element:', this.elements.btnAccountCreate);
+    
     // 欢迎对话框事件
-    this.elements.btnCreateAccount?.addEventListener('click', () => this.handleCreateAccount());
+    if (this.elements.btnCreateAccount) {
+      console.log('[AccountSetup] Binding btnCreateAccount click event');
+      this.elements.btnCreateAccount.addEventListener('click', () => {
+        console.log('[AccountSetup] btnCreateAccount clicked');
+        this.handleCreateAccount();
+      });
+    } else {
+      console.error('[AccountSetup] btnCreateAccount element not found!');
+    }
     this.elements.btnImportSecret?.addEventListener('click', () => this.handleImportSecret());
     this.elements.btnSkipSetup?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -138,7 +150,10 @@ class AccountSetup {
     this.elements.btnSetupComplete?.addEventListener('click', () => this.hideSetupCompleteDialog());
     
     // 未登录状态按钮
-    this.elements.btnAccountCreate?.addEventListener('click', () => this.handleCreateAccount());
+    this.elements.btnAccountCreate?.addEventListener('click', () => {
+      console.log('[AccountSetup] btnAccountCreate clicked');
+      this.handleCreateAccount();
+    });
     this.elements.btnAccountImport?.addEventListener('click', () => this.handleImportSecret());
     
     // 已登录状态按钮
@@ -575,8 +590,13 @@ class AccountSetup {
    * 显示欢迎设置对话框
    */
   showWelcomeSetupDialog() {
+    console.log('[AccountSetup] showWelcomeSetupDialog called');
+    console.log('[AccountSetup] welcomeSetupDialog element:', this.elements.welcomeSetupDialog);
     if (this.elements.welcomeSetupDialog) {
       this.elements.welcomeSetupDialog.style.display = 'flex';
+      console.log('[AccountSetup] Dialog displayed');
+    } else {
+      console.error('[AccountSetup] welcomeSetupDialog element not found!');
     }
   }
 
@@ -595,9 +615,13 @@ class AccountSetup {
   async handleCreateAccount() {
     const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
     try {
+      console.log('[AccountSetup] handleCreateAccount called');
+      console.log('[AccountSetup] browserControlManager:', !!window.browserControlManager);
+      console.log('[AccountSetup] generateHappySecret:', !!window.browserControlManager?.generateHappySecret);
       console.log('[AccountSetup] Generating new secret...');
       
       const result = await window.browserControlManager?.generateHappySecret?.();
+      console.log('[AccountSetup] generateHappySecret result:', result);
       
       if (result?.success) {
         // 保存生成的 secret 信息用于后续保存

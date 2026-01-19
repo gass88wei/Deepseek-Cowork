@@ -45,6 +45,35 @@ let happyServiceInitialized = false;
 // 依赖状态缓存
 let dependencyStatus = null;
 
+/**
+ * 获取应用数据目录（兼容开发环境和打包环境）
+ * 打包后 ASAR 包是只读的，所以需要使用 userData 目录
+ * @returns {string} 数据目录路径
+ */
+function getAppDataDir() {
+  const config = require('../config');
+  const configDataDir = config.database?.directory;
+  
+  // 检查配置的目录是否在 ASAR 包内（打包环境）
+  if (configDataDir && configDataDir.includes('app.asar')) {
+    // 打包环境：使用 userData 目录
+    return path.join(app.getPath('userData'), 'data');
+  }
+  
+  // 开发环境或配置了外部路径：使用配置的目录
+  if (configDataDir) {
+    return configDataDir;
+  }
+  
+  // 备用方案：检查 __dirname 是否在 ASAR 包内
+  if (__dirname.includes('app.asar')) {
+    return path.join(app.getPath('userData'), 'data');
+  }
+  
+  // 开发环境默认值
+  return path.join(__dirname, '../data');
+}
+
 // ============================================================================
 // 单实例锁 - 防止多个应用实例同时运行
 // ============================================================================
@@ -567,8 +596,8 @@ function setupIpcHandlers() {
     
     let stateDir = happyConfig.stateDir;
     if (!stateDir) {
-      // 使用数据库目录作为基础，保持数据存储一致性
-      const dataDir = config.database?.directory || path.join(__dirname, '../data');
+      // 使用数据目录作为基础，自动处理 ASAR 打包兼容性
+      const dataDir = getAppDataDir();
       stateDir = path.join(dataDir, 'happy-state');
     }
     
@@ -837,14 +866,18 @@ function setupIpcHandlers() {
   });
 
   ipcMain.handle('happy:saveSecret', async (event, secret, providedToken = null) => {
+    console.log('[happy:saveSecret] Called, providedToken:', !!providedToken);
     try {
       const SecretGenerator = require('../lib/happy-client/utils/SecretGenerator');
       
       // 验证格式
+      console.log('[happy:saveSecret] Validating secret format...');
       const validation = SecretGenerator.validateSecretFormat(secret);
       if (!validation.valid) {
+        console.log('[happy:saveSecret] Validation failed:', validation.error);
         return { success: false, error: validation.error };
       }
+      console.log('[happy:saveSecret] Validation passed');
       
       // 检查是否是账户切换（已有不同的 secret）
       let isAccountSwitching = false;
@@ -886,29 +919,38 @@ function setupIpcHandlers() {
       }
       
       // 保存标准化后的 Secret
+      console.log('[happy:saveSecret] Saving secret to secure storage...');
       secureSettings.setSecret('happy.secret', validation.normalized);
+      console.log('[happy:saveSecret] Secret saved');
       
       // 同步凭证到 ~/.happy/access.key（使 daemon 能正确认证）
       let token = providedToken;
       if (!token) {
         // 如果没有提供 token，需要重新获取
+        console.log('[happy:saveSecret] No token provided, fetching from server...');
         try {
           const Auth = require('../lib/happy-client/core/Auth');
           const auth = new Auth();
           const serverUrl = userSettings.get('happy.serverUrl') || 'https://api.deepseek-cowork.com';
+          console.log('[happy:saveSecret] Server URL:', serverUrl);
           const masterSecret = Buffer.from(validation.normalized, 'base64url');
           token = await auth.getToken(masterSecret, serverUrl);
+          console.log('[happy:saveSecret] Token fetched:', !!token);
         } catch (e) {
           console.warn('[saveSecret] Failed to get token for sync:', e.message);
         }
+      } else {
+        console.log('[happy:saveSecret] Using provided token');
       }
       
       if (token) {
+        console.log('[happy:saveSecret] Syncing credentials to ~/.happy/access.key...');
         try {
           // 获取当前服务器地址
           const serverUrl = userSettings.get('happy.serverUrl') || null;
           // 账号切换或首次设置时清理旧的 machineId
           syncCredentialsToHappyDir(validation.normalized, token, serverUrl, isAccountSwitching);
+          console.log('[happy:saveSecret] Credentials synced');
         } catch (e) {
           console.warn('[saveSecret] Failed to sync credentials to ~/.happy/access.key:', e.message);
         }
@@ -916,13 +958,44 @@ function setupIpcHandlers() {
         console.warn('[saveSecret] No token available, credentials not synced to ~/.happy/access.key');
       }
       
+      console.log('[happy:saveSecret] isAccountSwitching:', isAccountSwitching, 'hasExistingSecret:', hasExistingSecret, 'happyServiceInitialized:', happyServiceInitialized);
+      
       // 热切换：如果是账号切换且 HappyService 已初始化，尝试重启 Daemon 而非整个应用
       if (isAccountSwitching && hasExistingSecret && happyServiceInitialized) {
         console.log('[saveSecret] Attempting hot account switch via daemon restart...');
         try {
-          const restartResult = await HappyService.restartDaemon();
+          // 计算新账户的 anonId
+          let newAnonId = null;
+          try {
+            const CryptoUtils = require('../lib/happy-client/utils/CryptoUtils');
+            const KeyUtils = require('../lib/happy-client/utils/KeyUtils');
+            const normalized = KeyUtils.normalizeSecretKey(validation.normalized);
+            const secretBytes = Buffer.from(CryptoUtils.decodeBase64(normalized, 'base64url'));
+            const derivedKey = await CryptoUtils.deriveKey(secretBytes, 'Happy Coder', ['analytics', 'id']);
+            newAnonId = derivedKey.toString('hex').slice(0, 16).toLowerCase();
+            console.log('[saveSecret] Computed new anonId:', newAnonId);
+          } catch (e) {
+            console.warn('[saveSecret] Failed to derive anonId:', e.message);
+          }
+          
+          // 传入新的 secret 配置和 anonId，确保 HappyClient 使用新账户
+          const newOptions = {
+            happySecret: validation.normalized,
+            serverUrl: userSettings.get('happy.serverUrl') || undefined,
+            anonId: newAnonId
+          };
+          const restartResult = await HappyService.restartDaemon(newOptions);
           if (restartResult.success) {
-            console.log('[saveSecret] Hot account switch successful');
+            console.log('[saveSecret] Hot account switch successful, reconnecting HappyClient...');
+            // 重新连接 HappyClient（等待连接完成，确保消息功能可用）
+            try {
+              const connectResult = await connectHappyClient('main');
+              if (!connectResult.success) {
+                console.warn('[saveSecret] HappyClient reconnection failed:', connectResult.error);
+              }
+            } catch (err) {
+              console.error('[saveSecret] HappyClient reconnection error:', err.message);
+            }
             return { success: true, needsRestart: false, hotSwitched: true };
           } else {
             // Daemon 重启失败，尝试完整重新初始化
@@ -1750,35 +1823,18 @@ async function initializeHappyService() {
       return;
     }
 
-    // 确定状态文件目录
+    // 确定状态文件目录（使用辅助函数兼容打包环境）
     let stateDir = happyConfig.stateDir;
     if (!stateDir) {
-      // 使用数据库目录作为基础，保持数据存储一致性
-      const dataDir = config.database?.directory || path.join(__dirname, '../data');
+      // 使用数据目录作为基础，自动处理 ASAR 打包兼容性
+      const dataDir = getAppDataDir();
       stateDir = path.join(dataDir, 'happy-state');
     }
     
-    // 向后兼容：如果新位置没有状态文件，检查旧位置是否有并迁移
-    const stateFileName = happyConfig.stateFileName || '.happy-sessions.json';
-    const newStateFile = path.join(stateDir, stateFileName);
-    const oldStateDir = path.join(app.getPath('userData'), 'happy-state');
-    const oldStateFile = path.join(oldStateDir, stateFileName);
-    
-    if (!fs.existsSync(newStateFile) && fs.existsSync(oldStateFile)) {
-      console.log('Migrating state file from old location...');
-      console.log('  From:', oldStateFile);
-      console.log('  To:', newStateFile);
-      try {
-        // 确保新目录存在
-        if (!fs.existsSync(stateDir)) {
-          fs.mkdirSync(stateDir, { recursive: true });
-        }
-        // 复制状态文件
-        fs.copyFileSync(oldStateFile, newStateFile);
-        console.log('State file migrated successfully');
-      } catch (err) {
-        console.warn('Failed to migrate state file:', err.message);
-      }
+    // 确保状态目录存在
+    if (!fs.existsSync(stateDir)) {
+      fs.mkdirSync(stateDir, { recursive: true });
+      console.log('Created state directory:', stateDir);
     }
     
     console.log('State directory:', stateDir);
@@ -1925,31 +1981,18 @@ async function tryReinitializeHappyService() {
     const config = require('../config');
     const happyConfig = config.happy || {};
     
-    // 确定状态文件目录
+    // 确定状态文件目录（使用辅助函数兼容打包环境）
     let stateDir = happyConfig.stateDir;
     if (!stateDir) {
-      // 使用数据库目录作为基础，保持数据存储一致性
-      const dataDir = config.database?.directory || path.join(__dirname, '../data');
+      // 使用数据目录作为基础，自动处理 ASAR 打包兼容性
+      const dataDir = getAppDataDir();
       stateDir = path.join(dataDir, 'happy-state');
     }
     
-    // 向后兼容：如果新位置没有状态文件，检查旧位置是否有并迁移
-    const stateFileName = happyConfig.stateFileName || '.happy-sessions.json';
-    const newStateFile = path.join(stateDir, stateFileName);
-    const oldStateDir = path.join(app.getPath('userData'), 'happy-state');
-    const oldStateFile = path.join(oldStateDir, stateFileName);
-    
-    if (!fs.existsSync(newStateFile) && fs.existsSync(oldStateFile)) {
-      console.log('[tryReinitializeHappyService] Migrating state file from old location...');
-      try {
-        if (!fs.existsSync(stateDir)) {
-          fs.mkdirSync(stateDir, { recursive: true });
-        }
-        fs.copyFileSync(oldStateFile, newStateFile);
-        console.log('[tryReinitializeHappyService] State file migrated successfully');
-      } catch (err) {
-        console.warn('[tryReinitializeHappyService] Failed to migrate state file:', err.message);
-      }
+    // 确保状态目录存在
+    if (!fs.existsSync(stateDir)) {
+      fs.mkdirSync(stateDir, { recursive: true });
+      console.log('[tryReinitializeHappyService] Created state directory:', stateDir);
     }
     
     console.log('[tryReinitializeHappyService] State directory:', stateDir);
