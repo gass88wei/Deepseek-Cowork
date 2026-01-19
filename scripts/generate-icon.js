@@ -40,12 +40,17 @@ async function generateIconIco() {
     // 为每个尺寸生成图像，确保黑色背景
     const resizedBuffers = await Promise.all(
       sizes.map(async (size) => {
-        return await sharp(inputBuffer)
+        // 1. 先用 flatten 将透明区域填充为黑色（在原始尺寸上操作）
+        const flattenedBuffer = await sharp(inputBuffer)
+          .flatten({ background: { r: 0, g: 0, b: 0 } })
+          .toBuffer();
+        
+        // 2. 然后调整大小
+        return await sharp(flattenedBuffer)
           .resize(size, size, {
             fit: 'contain',
-            background: { r: 0, g: 0, b: 0, alpha: 1 } // 黑色背景
+            background: { r: 0, g: 0, b: 0, alpha: 1 }
           })
-          .flatten({ background: { r: 0, g: 0, b: 0 } }) // 确保没有透明度
           .png()
           .toBuffer();
       })

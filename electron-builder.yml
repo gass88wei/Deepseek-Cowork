@@ -41,8 +41,10 @@ win:
   icon: icons/icon.ico
   requestedExecutionLevel: asInvoker
   artifactName: "${productName}-${version}-${arch}.${ext}"
-  sign: null  # 禁用代码签名（开发环境）
-  signingHashAlgorithms: []  # 禁用签名哈希算法
+  # 完全禁用代码签名（开发环境/无证书）
+  signAndEditExecutable: false
+  # 不强制要求签名
+  forceCodeSigning: false
 
 # macOS 配置
 mac:
@@ -93,17 +95,19 @@ dmg:
 # 压缩配置
 compression: normal
 
-# 跳过 native 依赖的重新编译（如果已安装）
-npmRebuild: false
+# 启用 native 依赖重新编译（sqlite3 需要针对 Electron 编译）
+npmRebuild: true
 
 # ASAR 配置
 # 确保 server 和 lib 目录可以被正确访问
 # 注意：asar 中的文件可以通过 require() 和 fs.readFileSync() 访问
 # 但如果需要执行二进制文件或需要原生模块，需要 unpack
 asar: true
-# 如果需要 unpack 某些目录（例如包含二进制文件的目录），取消下面的注释
-# asarUnpack:
-#   - "lib/happy-cli/tools/unpacked/**/*"
+asarUnpack:
+  # better-sqlite3 原生模块 - 必须解压才能正常加载
+  - "**/better-sqlite3/build/Release/*.node"
+  # happy-cli 二进制工具 - 需要解压才能执行
+  - "lib/happy-cli/tools/**/*"
 
 # 发布配置（如果需要自动发布到 GitHub Releases）
 # publish:

@@ -226,13 +226,26 @@ class ServerManager {
     
     // 数据库路径处理
     // In production, use userData directory; in dev, use project data directory
-    const isDev = !app.isPackaged;
-    const baseDataDir = isDev 
+    // Use this.isDev if available, otherwise check app.isPackaged
+    const isDev = this.isDev !== null ? this.isDev : !app.isPackaged;
+    
+    // Also check if rootDir points to asar - if so, we're in production
+    const isAsarPath = global.rootDir && global.rootDir.includes('.asar');
+    const actualIsDev = isDev && !isAsarPath;
+    
+    // Always use userData for data storage to ensure writability
+    const baseDataDir = actualIsDev 
       ? (global.rootDir || process.cwd())
       : app.getPath('userData');
     
-    const dbPath = projectConfig.database?.path || path.join(baseDataDir, 'browser_data.db');
-    const dbDir = projectConfig.database?.directory || path.join(baseDataDir, 'data');
+    // In production, always use userData for database, ignore projectConfig paths
+    // because projectConfig paths are relative and would resolve to asar (read-only)
+    const dbPath = actualIsDev && projectConfig.database?.path 
+      ? projectConfig.database.path 
+      : path.join(baseDataDir, 'data', 'browser_data.db');
+    const dbDir = actualIsDev && projectConfig.database?.directory 
+      ? projectConfig.database.directory 
+      : path.join(baseDataDir, 'data');
     
     return {
       server: {
@@ -317,14 +330,15 @@ class ServerManager {
       }
       
       // In development: appPath is already the project root, use it directly
-      // In production: appPath might be app.asar path, we need to handle it
+      // In production: appPath is the app.asar path, keep it as is for require() to work
       if (this.isDev) {
         // Development mode: appPath is the project root
         global.rootDir = this.appPath;
       } else {
-        // Production mode: remove app.asar or app suffix if present
-        // app.getAppPath() returns the asar path, but we can access files inside it
-        global.rootDir = this.appPath.replace(/[\\/]app\.asar$/, '').replace(/[\\/]app$/, '') || this.appPath;
+        // Production mode: keep app.asar path as rootDir
+        // Node.js/Electron can transparently access files inside asar
+        // Native modules will be loaded from app.asar.unpacked automatically
+        global.rootDir = this.appPath;
       }
       
       this.addLog('info', `App path: ${this.appPath}`);
