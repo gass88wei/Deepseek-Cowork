@@ -111,6 +111,8 @@ class BrowserControlManagerApp {
     this.aiConnected = false;
     this.aiMessages = [];
     this.currentSessionId = null;
+    this._connectedMessageShown = false;  // 防止重复显示"已连接"消息
+    this._historyLoaded = false;  // 防止重复加载历史消息
     
     // Happy AI 消息去重
     this.displayedMessageIds = new Set();
@@ -925,6 +927,11 @@ class BrowserControlManagerApp {
         window.apiAdapter?.emit?.('happy:initialized', data);
       });
       
+      this.wsClient.on('happy:status', (data) => {
+        console.log('[App] WS happy:status', data);
+        window.apiAdapter?.emit?.('happy:status', data);
+      });
+      
       // 连接 WebSocket
       await this.wsClient.connect();
       
@@ -964,13 +971,20 @@ class BrowserControlManagerApp {
       this.updateAIStatus({ isConnected: true });
       
       // 连接成功后加载历史消息
-      await this.loadHappyMessageHistory();
+      if (!this._historyLoaded) {
+        await this.loadHappyMessageHistory();
+        this._historyLoaded = true;
+      }
       
       // 加载最新的 usage 数据
       await this.loadLatestUsage();
       
-      const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
-      this.addAIMessage('system', t('chat.agentConnected'));
+      // 显示连接成功消息（只显示一次）
+      if (!this._connectedMessageShown) {
+        this._connectedMessageShown = true;
+        const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
+        this.addAIMessage('system', t('chat.agentConnected'));
+      }
     });
     if (unsubHappyConnected) this.unsubscribers.push(unsubHappyConnected);
     
@@ -978,6 +992,8 @@ class BrowserControlManagerApp {
     const unsubHappyDisconnected = window.browserControlManager.onHappyDisconnected?.((data) => {
       console.log('Happy AI disconnected:', data);
       this.aiConnected = false;
+      this._connectedMessageShown = false;  // 重置标志，以便重新连接时再次显示消息
+      this._historyLoaded = false;  // 重置历史加载标志
       this.updateAIStatus({ isConnected: false });
       const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
       this.addAIMessage('system', `${t('chat.agentDisconnected')}: ${data.reason || t('chat.unknownReason')}`);
@@ -1041,6 +1057,38 @@ class BrowserControlManagerApp {
       }
     });
     if (unsubHappyInitialized) this.unsubscribers.push(unsubHappyInitialized);
+    
+    // 监听 Happy 初始状态事件（WebSocket 连接时发送）
+    // 此事件在 WebSocket 连接建立时由后端发送，包含当前 AI 连接状态
+    const unsubHappyStatus = window.browserControlManager.onHappyStatus?.(async (data) => {
+      console.log('[HappyStatus] Initial status received:', data);
+      // 更新 AI 连接状态
+      if (data.clientConnected !== undefined) {
+        this.aiConnected = data.clientConnected;
+        this.currentSessionId = data.sessionId || this.currentSessionId;
+        this.updateAIStatus({ 
+          isConnected: data.clientConnected,
+          eventStatus: data.eventStatus
+        });
+        
+        // 如果已连接，加载历史消息并显示连接提示
+        if (data.clientConnected) {
+          if (!this._historyLoaded) {
+            await this.loadHappyMessageHistory();
+            this._historyLoaded = true;
+          }
+          await this.loadLatestUsage();
+          
+          // 显示连接成功消息（只显示一次）
+          if (!this._connectedMessageShown) {
+            this._connectedMessageShown = true;
+            const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
+            this.addAIMessage('system', t('chat.agentConnected'));
+          }
+        }
+      }
+    });
+    if (unsubHappyStatus) this.unsubscribers.push(unsubHappyStatus);
     
     // ============ 软件更新事件监听 ============
     

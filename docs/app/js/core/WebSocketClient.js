@@ -109,6 +109,7 @@ class WebSocketClient {
         
         // 监听所有需要转发的事件（与后端 ws/events.js 保持一致）
         const events = [
+            'happy:status',        // 初始状态（连接时发送）
             'happy:connected',
             'happy:disconnected',
             'happy:message',

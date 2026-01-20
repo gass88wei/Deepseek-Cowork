@@ -153,9 +153,13 @@ class ChatPanel {
       if (status) {
         this.updateAIStatus(status);
         
-        // 如果已连接，加载历史消息
+        // 如果已连接，加载历史消息（如果尚未加载）
         if (status.isConnected) {
-          await this.loadHappyMessageHistory();
+          // 检查是否已经通过 WebSocket 事件加载了历史（避免重复加载清空消息）
+          if (!this.app?._historyLoaded) {
+            await this.loadHappyMessageHistory();
+            if (this.app) this.app._historyLoaded = true;
+          }
         } else {
           // 如果未连接，自动尝试连接
           console.log('[ChatPanel] AI not connected, attempting auto-connect...');
@@ -195,13 +199,16 @@ class ChatPanel {
    */
   async loadHappyMessageHistory() {
     try {
-      const messages = await window.browserControlManager?.getHappyMessages?.(100);
+      const result = await window.browserControlManager?.getHappyMessages?.(100);
       
       // 先清空显示
       this.renderedMessageIds.clear();
       if (this.elements.aiMessages) {
         this.elements.aiMessages.innerHTML = '';
       }
+      
+      // 解析返回值：可能是 { success, messages } 对象或直接是数组
+      const messages = Array.isArray(result) ? result : (result?.messages || []);
       
       // 使用 HappyMessageHandler 处理历史消息
       if (messages && messages.length > 0 && this.app?.happyMessageHandler) {
@@ -280,8 +287,10 @@ class ChatPanel {
    */
   async loadLatestUsage() {
     try {
-      const usage = await window.browserControlManager?.getLatestUsage?.();
-      if (usage) {
+      const result = await window.browserControlManager?.getLatestUsage?.();
+      // 解析返回值：可能是 { success, usage } 对象或直接是 usage 数据
+      const usage = result?.usage || result;
+      if (usage && typeof usage === 'object') {
         this.usageData = usage;
         if (this.app?.updateUsageDisplay) {
           this.app.updateUsageDisplay(usage);

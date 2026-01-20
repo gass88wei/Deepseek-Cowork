@@ -840,6 +840,7 @@ function createBrowserControlManagerPolyfill() {
         onHappyServiceStatus: createEventListener('happy:serviceStatus'),
         onDaemonStatusChanged: createEventListener('daemon:statusChanged'),
         onHappyInitialized: createEventListener('happy:initialized'),
+        onHappyStatus: createEventListener('happy:status'),  // 初始状态事件
         onUpdateChecking: createEventListener('update:checking'),
         onUpdateAvailable: createEventListener('update:available'),
         onUpdateNotAvailable: createEventListener('update:notAvailable'),
