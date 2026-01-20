@@ -89,7 +89,7 @@ const API_MAPPING = {
     
     // 文件系统
     'getWorkspaceRoot': { method: 'GET', path: '/api/files/workspace' },
-    'listDirectory': { method: 'GET', path: '/api/files/list', queryKey: 'path' },
+    'listDirectory': { method: 'GET', path: '/api/files/list', multiQuery: true },
     'createFolder': { method: 'POST', path: '/api/files/folder' },
     'deleteItem': { method: 'DELETE', path: '/api/files/item', queryKey: 'path' },
     'renameItem': { method: 'PUT', path: '/api/files/rename' },
@@ -295,7 +295,7 @@ class ApiAdapter {
             throw new Error(`No HTTP mapping for method "${method}"`);
         }
         
-        let { method: httpMethod, path, queryKey, bodyKey } = mapping;
+        let { method: httpMethod, path, queryKey, bodyKey, multiQuery } = mapping;
         
         // 处理路径参数
         if (path.includes('{')) {
@@ -319,7 +319,18 @@ class ApiAdapter {
         let url = `${this._baseUrl}${path}`;
         
         // 处理查询参数
-        if (queryKey && args[0] !== undefined) {
+        if (multiQuery && args[0] !== undefined && typeof args[0] === 'object') {
+            // 支持多个查询参数（对象形式）
+            const params = new URLSearchParams();
+            for (const [key, value] of Object.entries(args[0])) {
+                if (value !== undefined && value !== null) {
+                    params.set(key, String(value));
+                }
+            }
+            if (params.toString()) {
+                url += `?${params.toString()}`;
+            }
+        } else if (queryKey && args[0] !== undefined) {
             const params = new URLSearchParams();
             params.set(queryKey, args[0]);
             url += `?${params.toString()}`;
@@ -726,7 +737,12 @@ function createBrowserControlManagerPolyfill() {
         
         // ========== 文件系统 ==========
         getWorkspaceRoot: createApiMethod('getWorkspaceRoot'),
-        listDirectory: createApiMethod('listDirectory'),
+        listDirectory: async (dirPath, options = {}) => {
+            // 默认显示隐藏文件
+            const showHidden = options.showHidden !== undefined ? options.showHidden : true;
+            if (!window.apiAdapter?.isConnected()) await waitForConnection();
+            return await window.apiAdapter.call('listDirectory', { path: dirPath, showHidden: String(showHidden) });
+        },
         createFolder: createApiMethod('createFolder'),
         deleteItem: createApiMethod('deleteItem'),
         renameItem: createApiMethod('renameItem'),
