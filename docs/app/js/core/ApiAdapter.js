@@ -536,6 +536,66 @@ function createBrowserControlManagerPolyfill() {
         };
     }
     
+    // 将依赖检测结果转换为设置向导格式
+    function convertDepsToSetupFormat(deps) {
+        const critical = [];
+        const recommended = [];
+        
+        // Claude Code 是关键依赖
+        if (deps?.claudeCode) {
+            critical.push({
+                id: 'claudeCode',
+                name: 'Claude Code',
+                status: deps.claudeCode.installed ? 'installed' : 'missing',
+                version: deps.claudeCode.version || null,
+                path: deps.claudeCode.path || null,
+                source: deps.claudeCode.source || null,
+                description: deps.claudeCode.installed 
+                    ? `已安装 v${deps.claudeCode.version || 'unknown'}`
+                    : '未安装',
+                guide: {
+                    methods: [
+                        { type: 'npm', command: 'npm install -g @anthropic-ai/claude-code' },
+                        { type: 'docs', url: 'https://docs.anthropic.com/claude-code' }
+                    ]
+                }
+            });
+        }
+        
+        // API Key 配置状态（从 deps 无法获取，设为未配置）
+        critical.push({
+            id: 'apiKey',
+            name: 'API Key',
+            status: 'configured',  // Web 模式下假设已配置
+            description: 'API 密钥配置'
+        });
+        
+        // Node.js 是推荐依赖
+        if (deps?.nodejs) {
+            recommended.push({
+                id: 'nodejs',
+                name: 'Node.js',
+                status: deps.nodejs.installed ? 'installed' : 'missing',
+                version: deps.nodejs.version || null,
+                description: deps.nodejs.installed 
+                    ? `已安装 v${deps.nodejs.version}`
+                    : '未安装（可选）'
+            });
+        }
+        
+        // 检查是否所有关键依赖都已就绪
+        const ready = critical.every(item => 
+            item.status === 'installed' || item.status === 'configured'
+        );
+        
+        return {
+            ready,
+            critical,
+            recommended,
+            platform: 'web'
+        };
+    }
+    
     return {
         // 标记这是一个 polyfill，用于 detectEnvironment 区分
         _isPolyfill: true,
@@ -709,8 +769,28 @@ function createBrowserControlManagerPolyfill() {
         getExtensionConnections: createApiMethod('getExtensionConnections'),
         
         // ========== 设置向导 ==========
-        getSetupRequirements: async () => ({ ready: true, critical: [], recommended: [], platform: 'web' }),
-        recheckSetup: async () => ({ ready: true, critical: [], recommended: [], platform: 'web' }),
+        getSetupRequirements: async () => {
+          // 调用依赖检测 API 并转换为设置向导格式
+          try {
+            const result = await window.apiAdapter.call('getDependencyStatus');
+            const deps = result?.status || result;
+            return convertDepsToSetupFormat(deps);
+          } catch (error) {
+            console.error('[getSetupRequirements] Error:', error);
+            return { ready: true, critical: [], recommended: [], platform: 'web' };
+          }
+        },
+        recheckSetup: async () => {
+          // 调用依赖检测 API 并转换为设置向导格式
+          try {
+            const result = await window.apiAdapter.call('checkAllDependencies');
+            const deps = result?.status || result;
+            return convertDepsToSetupFormat(deps);
+          } catch (error) {
+            console.error('[recheckSetup] Error:', error);
+            return { ready: true, critical: [], recommended: [], platform: 'web' };
+          }
+        },
         completeSetup: async () => ({ success: true }),
         skipSetup: async () => ({ success: true }),
         shouldShowSetup: async () => ({ shouldShow: false, reason: 'web_mode' }),

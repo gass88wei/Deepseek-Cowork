@@ -370,6 +370,12 @@ class BrowserControlManagerApp {
     // 加载工作目录设置
     await this.loadWorkspaceSettings();
     
+    // 加载 Daemon 状态
+    await this.loadDaemonStatus();
+    
+    // 加载依赖状态（Node.js、Claude Code 等）
+    await this.loadDependencyStatus();
+    
     // 加载标签页列表 - 只有在服务器运行时才加载
     if (status && status.running) {
       console.log('[init] Server is running, refreshing tabs...');
