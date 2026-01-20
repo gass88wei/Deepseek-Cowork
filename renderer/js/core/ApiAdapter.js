@@ -570,5 +570,25 @@ function createBrowserControlManagerPolyfill() {
 // 因为扩展创建的对象不包含完整的方法集
 if (detectEnvironment() === 'web') {
     console.log('[ApiAdapter] Creating browserControlManager polyfill for Web mode');
+    // 保存扩展原有的对象引用（如果存在），以便扩展功能仍可使用
+    if (window.browserControlManager) {
+        window._extensionBrowserControlManager = window.browserControlManager;
+        console.log('[ApiAdapter] Saved extension browserControlManager reference');
+    }
     window.browserControlManager = createBrowserControlManagerPolyfill();
 }
+
+// 延迟再次检查，防止浏览器扩展在脚本加载后覆盖 polyfill
+setTimeout(() => {
+    if (detectEnvironment() === 'web') {
+        // 检查 polyfill 是否被覆盖
+        if (typeof window.browserControlManager?.getAppVersion !== 'function' ||
+            typeof window.browserControlManager?.onServerStatusChanged !== 'function') {
+            console.log('[ApiAdapter] Polyfill was overwritten, recreating...');
+            if (window.browserControlManager && !window._extensionBrowserControlManager) {
+                window._extensionBrowserControlManager = window.browserControlManager;
+            }
+            window.browserControlManager = createBrowserControlManagerPolyfill();
+        }
+    }
+}, 0);

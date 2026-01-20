@@ -1312,14 +1312,24 @@ class BrowserControlManagerApp {
    */
   async updateAppVersion() {
     try {
-      if (this.productVersion && window.browserControlManager) {
-        const versionInfo = await window.browserControlManager.getAppVersion();
-        if (versionInfo && versionInfo.version) {
-          this.productVersion.textContent = `V${versionInfo.version}`;
+      if (this.productVersion) {
+        // 检查 getAppVersion 方法是否存在且为函数
+        if (typeof window.browserControlManager?.getAppVersion === 'function') {
+          const versionInfo = await window.browserControlManager.getAppVersion();
+          if (versionInfo && versionInfo.version) {
+            this.productVersion.textContent = `V${versionInfo.version}`;
+          }
+        } else {
+          // Web 模式下使用固定标识
+          this.productVersion.textContent = 'Web';
         }
       }
     } catch (error) {
       console.error('Failed to update app version:', error);
+      // 出错时也显示 Web 标识
+      if (this.productVersion) {
+        this.productVersion.textContent = 'Web';
+      }
     }
   }
   
@@ -1856,12 +1866,22 @@ handleKeyDown(e) {
    */
   async initUpdateUI() {
     try {
-      const versionInfo = await window.browserControlManager?.getAppVersion();
-      if (versionInfo && this.updateCurrentVersion) {
-        this.updateCurrentVersion.textContent = `v${versionInfo.version}`;
+      // 检查 getAppVersion 方法是否存在且为函数
+      if (typeof window.browserControlManager?.getAppVersion === 'function') {
+        const versionInfo = await window.browserControlManager.getAppVersion();
+        if (versionInfo && this.updateCurrentVersion) {
+          this.updateCurrentVersion.textContent = `v${versionInfo.version}`;
+        }
+      } else if (this.updateCurrentVersion) {
+        // Web 模式下显示 Web 标识
+        this.updateCurrentVersion.textContent = 'Web';
       }
     } catch (error) {
       console.error('[Update] Failed to get app version:', error);
+      // 出错时也显示 Web 标识
+      if (this.updateCurrentVersion) {
+        this.updateCurrentVersion.textContent = 'Web';
+      }
     }
   }
 

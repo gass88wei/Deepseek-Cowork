@@ -68,8 +68,13 @@ class BrowserControlModule {
    * 设置事件监听器
    */
   setupEventListeners() {
-    // 检查运行模式
-    const isWebMode = typeof window.browserControlManager === 'undefined';
+    // 检查运行模式 - 使用更可靠的检测方法
+    // 1. 如果 apiAdapter 已初始化且是 web 模式
+    // 2. 或者 browserControlManager 不存在
+    // 3. 或者 browserControlManager.onServerStatusChanged 不是函数（polyfill 不完整）
+    const isWebMode = window.apiAdapter?.getMode() === 'web' ||
+                      typeof window.browserControlManager === 'undefined' ||
+                      typeof window.browserControlManager?.onServerStatusChanged !== 'function';
     
     if (isWebMode) {
       console.log('[BrowserControlModule] Running in Web mode, using ApiAdapter');
