@@ -53,9 +53,12 @@ function detectEnvironment() {
  * IPC 方法名到 HTTP 端点的映射
  */
 const API_MAPPING = {
-    // 服务器状态
+    // 服务器状态和控制
     'getServerStatus': { method: 'GET', path: '/api/status' },
     'getDetailedStatus': { method: 'GET', path: '/api/status' },
+    'startServer': { method: 'POST', path: '/api/server/start' },
+    'stopServer': { method: 'POST', path: '/api/server/stop' },
+    'restartServer': { method: 'POST', path: '/api/server/restart' },
     
     // AI 相关
     'getAiStatus': { method: 'GET', path: '/api/ai/status' },
@@ -127,12 +130,14 @@ const API_MAPPING = {
     'getDependencyStatus': { method: 'GET', path: '/api/status' },
     'checkAllDependencies': { method: 'GET', path: '/api/status' },
     'clearLogs': { method: 'DELETE', path: '/api/logs' },
+    'getServerLogs': { method: 'GET', path: '/api/logs' },
     
     // 浏览器控制
     'getTabs': { method: 'GET', path: '/api/browser/tabs' },
     'closeTab': { method: 'POST', path: '/api/browser/tab/close' },
     'openUrl': { method: 'POST', path: '/api/browser/tab/open' },
-    'getExtensionStatus': { method: 'GET', path: '/api/browser/extension/status' }
+    'getExtensionStatus': { method: 'GET', path: '/api/browser/extension/status' },
+    'getExtensionConnections': { method: 'GET', path: '/api/browser/extension/connections' }
 };
 
 /**
@@ -438,10 +443,35 @@ function createBrowserControlManagerPolyfill() {
         };
     }
     
+    // 未连接时的默认返回值
+    const DEFAULT_VALUES = {
+        // 返回空数组的方法
+        'getServerLogs': [],
+        'getTabs': { tabs: [] },
+        'getMessages': [],
+        'getAllSessions': [],
+        // 返回 0 或空对象的方法
+        'getExtensionConnections': { connections: 0 },
+        'getExtensionStatus': { connected: false, count: 0 },
+        'getAiStatus': { connected: false },
+        'getServerStatus': { running: false },
+        // 返回空设置的方法
+        'getAllHappySettings': { workspaceDir: null, permissionMode: 'default' },
+        'getWorkspaceSettings': { workspaceDir: null },
+        'getClaudeCodeSettings': { provider: 'anthropic' },
+        'getAccountInfo': null,
+        'getDependencyStatus': { nodejs: { installed: false }, claudeCode: { installed: false } }
+    };
+    
     // 创建 API 调用方法
     function createApiMethod(methodName) {
         return async function(...args) {
             if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
+                // 如果有预定义的默认值，返回它；否则返回 null
+                if (methodName in DEFAULT_VALUES) {
+                    console.log(`[Polyfill] ${methodName}: Not connected, returning default value`);
+                    return DEFAULT_VALUES[methodName];
+                }
                 console.warn(`[Polyfill] ${methodName}: Not connected`);
                 return null;
             }
@@ -461,19 +491,35 @@ function createBrowserControlManagerPolyfill() {
         // ========== 服务器状态 ==========
         getServerStatus: createApiMethod('getServerStatus'),
         getDetailedStatus: createApiMethod('getDetailedStatus'),
+        startServer: createApiMethod('startServer'),
+        stopServer: createApiMethod('stopServer'),
+        restartServer: createApiMethod('restartServer'),
         
         // ========== AI 相关 ==========
         getAiStatus: createApiMethod('getAiStatus'),
+        getAIStatus: createApiMethod('getAiStatus'),  // 别名
         connectAi: createApiMethod('connectAi'),
+        connectAI: createApiMethod('connectAi'),  // 别名
         disconnectAi: createApiMethod('disconnectAi'),
+        disconnectAI: createApiMethod('disconnectAi'),  // 别名
         sendAiMessage: createApiMethod('sendMessage'),
+        sendAIMessage: createApiMethod('sendMessage'),  // 别名
         getAiMessages: createApiMethod('getMessages'),
+        getAIMessages: createApiMethod('getMessages'),  // 别名
+        getHappyMessages: createApiMethod('getMessages'),  // 别名
         clearAiMessages: createApiMethod('clearMessages'),
+        clearAIMessages: createApiMethod('clearMessages'),  // 别名
         restoreAiMessages: createApiMethod('restoreMessages'),
+        restoreAIMessages: createApiMethod('restoreMessages'),  // 别名
+        restoreHappyMessages: createApiMethod('restoreMessages'),  // 别名
         getAiUsage: createApiMethod('getLatestUsage'),
+        getLatestUsage: createApiMethod('getLatestUsage'),  // 直接名称
         allowAiPermission: createApiMethod('allowPermission'),
+        allowPermission: createApiMethod('allowPermission'),  // 直接名称
         denyAiPermission: createApiMethod('denyPermission'),
+        denyPermission: createApiMethod('denyPermission'),  // 直接名称
         abortAi: createApiMethod('abortSession'),
+        abortSession: createApiMethod('abortSession'),  // 直接名称
         getAllSessions: createApiMethod('getAllSessions'),
         getSessionId: createApiMethod('getSessionId'),
         reconnectSession: createApiMethod('reconnectSession'),
@@ -481,10 +527,15 @@ function createBrowserControlManagerPolyfill() {
         // ========== 账户相关 ==========
         getAccountInfo: createApiMethod('getAccountInfo'),
         hasSecret: createApiMethod('hasSecret'),
+        hasHappySecret: createApiMethod('hasSecret'),  // 别名
         generateSecret: createApiMethod('generateSecret'),
+        generateHappySecret: createApiMethod('generateSecret'),  // 别名
         validateSecret: createApiMethod('validateSecret'),
+        validateHappySecret: createApiMethod('validateSecret'),  // 别名
         verifySecret: createApiMethod('verifySecret'),
+        verifyHappySecret: createApiMethod('verifySecret'),  // 别名
         saveSecret: createApiMethod('saveSecret'),
+        saveHappySecret: createApiMethod('saveSecret'),  // 别名
         logout: createApiMethod('logout'),
         changeServer: createApiMethod('changeServer'),
         getFormattedSecret: createApiMethod('getFormattedSecret'),
@@ -515,16 +566,25 @@ function createBrowserControlManagerPolyfill() {
         getSetting: createApiMethod('getSetting'),
         setSetting: createApiMethod('setSetting'),
         getAllHappySettings: createApiMethod('getAllHappySettings'),
+        getHappySettings: createApiMethod('getAllHappySettings'),  // 别名
         saveHappySettings: createApiMethod('saveHappySettings'),
+        setHappySettings: createApiMethod('saveHappySettings'),  // 别名
         getWorkspaceSettings: createApiMethod('getWorkspaceSettings'),
         setWorkspaceDir: createApiMethod('setWorkspaceDir'),
         resetWorkspaceDir: createApiMethod('resetWorkspaceDir'),
         selectWorkspaceDir: createApiMethod('selectWorkspaceDir'),
         getWorkDirs: createApiMethod('getWorkDirs'),
+        listWorkDirs: createApiMethod('getWorkDirs'),  // 别名
+        switchWorkDir: createApiMethod('setWorkspaceDir'),  // 切换工作目录使用 setWorkspaceDir
+        getCurrentWorkDir: createApiMethod('getWorkspaceSettings'),  // 获取当前工作目录
+        getClaudeSettings: createApiMethod('getClaudeCodeSettings'),  // 别名
         getClaudeCodeSettings: createApiMethod('getClaudeCodeSettings'),
+        saveClaudeSettings: createApiMethod('saveClaudeCodeSettings'),  // 别名
         saveClaudeCodeSettings: createApiMethod('saveClaudeCodeSettings'),
+        getClaudePresets: createApiMethod('getClaudeCodePresets'),  // 别名
         getClaudeCodePresets: createApiMethod('getClaudeCodePresets'),
         setClaudeAuthToken: createApiMethod('setClaudeAuthToken'),
+        hasClaudeAuthToken: async () => false,  // Web 模式下默认没有 Claude Auth Token
         deleteClaudeAuthToken: createApiMethod('deleteClaudeAuthToken'),
         getDependencyStatus: createApiMethod('getDependencyStatus'),
         checkAllDependencies: createApiMethod('checkAllDependencies'),
@@ -534,17 +594,36 @@ function createBrowserControlManagerPolyfill() {
         closeTab: createApiMethod('closeTab'),
         openUrl: createApiMethod('openUrl'),
         getExtensionStatus: createApiMethod('getExtensionStatus'),
+        getExtensionConnections: createApiMethod('getExtensionConnections'),
+        
+        // ========== 设置向导 ==========
+        getSetupRequirements: async () => ({ ready: true, critical: [], recommended: [], platform: 'web' }),
+        recheckSetup: async () => ({ ready: true, critical: [], recommended: [], platform: 'web' }),
+        completeSetup: async () => ({ success: true }),
+        skipSetup: async () => ({ success: true }),
+        shouldShowSetup: async () => ({ shouldShow: false, reason: 'web_mode' }),
+        resetSetupWizard: async () => ({ success: true }),
+        getSetupPlatform: async () => 'web',
         
         // ========== 应用控制 ==========
         getAppVersion: async () => ({ version: 'Web', platform: 'web' }),
         restartApp: () => window.location.reload(),
+        quitApp: () => window.close(),
+        getServerLogs: createApiMethod('getServerLogs'),
         clearServerLogs: createApiMethod('clearLogs'),
         openNodeJsWebsite: () => window.open('https://nodejs.org/', '_blank'),
         openClaudeCodeDocs: () => window.open('https://docs.anthropic.com/claude-code', '_blank'),
         
+        // ========== 自动更新（Web 模式下不支持） ==========
+        checkForUpdates: async () => ({ success: false, error: 'Not supported in web mode' }),
+        downloadUpdate: async () => ({ success: false, error: 'Not supported in web mode' }),
+        getUpdateStatus: async () => ({ status: 'not-available', currentVersion: 'Web' }),
+        quitAndInstall: async () => false,
+        
         // ========== 事件监听 ==========
         onServerStatusChanged: createEventListener('server:status'),
         onServerLog: createEventListener('server:log'),
+        onServerError: createEventListener('server:error'),
         onViewLoaded: createEventListener('view:loaded'),
         onViewLoadFailed: createEventListener('view:loadFailed'),
         onHappyMessage: createEventListener('happy:message'),
@@ -554,6 +633,7 @@ function createBrowserControlManagerPolyfill() {
         onHappyError: createEventListener('happy:error'),
         onUsageUpdate: createEventListener('happy:usageUpdate'),
         onHappyMessagesRestored: createEventListener('happy:messagesRestored'),
+        onHappyServiceStatus: createEventListener('happy:serviceStatus'),
         onDaemonStatusChanged: createEventListener('daemon:statusChanged'),
         onHappyInitialized: createEventListener('happy:initialized'),
         onUpdateChecking: createEventListener('update:checking'),
@@ -562,9 +642,17 @@ function createBrowserControlManagerPolyfill() {
         onUpdateDownloadProgress: createEventListener('update:downloadProgress'),
         onUpdateDownloaded: createEventListener('update:downloaded'),
         onUpdateError: createEventListener('update:error'),
+        onUpdateStatusChanged: createEventListener('update:statusChanged'),
         onExtensionConnected: createEventListener('extension:connected'),
         onExtensionDisconnected: createEventListener('extension:disconnected'),
         onTabsUpdated: createEventListener('tabs:updated'),
+        onTabsUpdate: createEventListener('tabs:updated'),  // 别名
+        onTabOpened: createEventListener('tab:opened'),
+        onTabClosed: createEventListener('tab:closed'),
+        onAIStatusChanged: createEventListener('ai:statusChanged'),
+        onAIMessage: createEventListener('ai:message'),
+        onAIProgress: createEventListener('ai:progress'),
+        onAIError: createEventListener('ai:error'),
         
         // 窗口控制（Web 模式下无效）
         minimizeWindow: () => console.log('[Polyfill] minimizeWindow: Not supported in web mode'),
