@@ -463,17 +463,44 @@ function createBrowserControlManagerPolyfill() {
         'getDependencyStatus': { nodejs: { installed: false }, claudeCode: { installed: false } }
     };
     
+    // 等待 apiAdapter 连接（最多等待 3 秒）
+    async function waitForConnection(maxWait = 3000) {
+        const startTime = Date.now();
+        while (Date.now() - startTime < maxWait) {
+            if (window.apiAdapter && window.apiAdapter.isConnected()) {
+                return true;
+            }
+            // 尝试初始化连接
+            if (window.apiAdapter && !window.apiAdapter.isConnected()) {
+                try {
+                    await window.apiAdapter.checkConnection();
+                    if (window.apiAdapter.isConnected()) {
+                        return true;
+                    }
+                } catch (e) {
+                    // 忽略错误，继续等待
+                }
+            }
+            await new Promise(resolve => setTimeout(resolve, 100));
+        }
+        return false;
+    }
+    
     // 创建 API 调用方法
     function createApiMethod(methodName) {
         return async function(...args) {
+            // 如果未连接，先等待连接
             if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
-                // 如果有预定义的默认值，返回它；否则返回 null
-                if (methodName in DEFAULT_VALUES) {
-                    console.log(`[Polyfill] ${methodName}: Not connected, returning default value`);
-                    return DEFAULT_VALUES[methodName];
+                const connected = await waitForConnection();
+                if (!connected) {
+                    // 如果有预定义的默认值，返回它；否则返回 null
+                    if (methodName in DEFAULT_VALUES) {
+                        console.log(`[Polyfill] ${methodName}: Not connected, returning default value`);
+                        return DEFAULT_VALUES[methodName];
+                    }
+                    console.warn(`[Polyfill] ${methodName}: Not connected`);
+                    return null;
                 }
-                console.warn(`[Polyfill] ${methodName}: Not connected`);
-                return null;
             }
             try {
                 return await window.apiAdapter.call(methodName, ...args);
@@ -531,6 +558,10 @@ function createBrowserControlManagerPolyfill() {
         generateSecret: createApiMethod('generateSecret'),
         generateHappySecret: createApiMethod('generateSecret'),  // 别名
         validateSecret: async (secret) => {
+            // 等待连接
+            if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
+                await waitForConnection();
+            }
             if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
                 return { valid: false, error: 'Not connected' };
             }
@@ -547,6 +578,10 @@ function createBrowserControlManagerPolyfill() {
         },
         validateHappySecret: async (secret) => window.browserControlManager.validateSecret(secret),
         verifySecret: async (secret) => {
+            // 等待连接
+            if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
+                await waitForConnection();
+            }
             if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
                 return { success: false, error: 'Not connected' };
             }
@@ -563,6 +598,10 @@ function createBrowserControlManagerPolyfill() {
         },
         verifyHappySecret: async (secret) => window.browserControlManager.verifySecret(secret),
         saveSecret: async (secret, token) => {
+            // 等待连接
+            if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
+                await waitForConnection();
+            }
             if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
                 console.warn('[Polyfill] saveSecret: Not connected');
                 return { success: false, error: 'Not connected' };
