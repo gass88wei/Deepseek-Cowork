@@ -94,7 +94,7 @@ class DaemonManager {
     if (this.elements.statusText) {
       this.elements.statusText.textContent = status.running 
         ? t('settings.daemonRunning') 
-        : t('settings.daemonStopped');
+        : t('notifications.daemonStopped');
     }
     
     // 更新详情
@@ -182,6 +182,14 @@ class DaemonManager {
       this.updateButtons(true, true);
       NotificationManager?.info?.(t('notifications.daemonStopping'));
       
+      // 更新状态文本
+      if (this.elements.statusText) {
+        this.elements.statusText.textContent = t('notifications.stopping');
+      }
+      if (this.elements.statusDot) {
+        this.elements.statusDot.className = 'daemon-status-dot stopping';
+      }
+      
       const result = await window.browserControlManager?.stopDaemon?.();
       
       if (result?.success) {
@@ -211,7 +219,7 @@ class DaemonManager {
       NotificationManager?.info?.(t('notifications.daemonRestarting'));
       
       if (this.elements.statusText) {
-        this.elements.statusText.textContent = t('notifications.restarting');
+        this.elements.statusText.textContent = t('notifications.daemonRestarting');
       }
       if (this.elements.statusDot) {
         this.elements.statusDot.className = 'daemon-status-dot starting';
