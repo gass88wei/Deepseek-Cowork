@@ -364,6 +364,9 @@ class BrowserControlManagerApp {
     // 检查初始状态（委托给 BrowserControlModule）
     const status = await this.browserControlModule.checkInitialStatus();
     
+    // 在 Web 模式下初始化 WebSocket 连接
+    await this.initWebSocket();
+    
     // 检查 AI 状态
     await this.checkAIStatus();
     
@@ -850,6 +853,88 @@ class BrowserControlManagerApp {
 
     // 键盘快捷键
     document.addEventListener('keydown', (e) => this.handleKeyDown(e));
+  }
+
+  /**
+   * 初始化 WebSocket 连接（Web 模式）
+   * 用于接收实时消息和事件
+   */
+  async initWebSocket() {
+    // 检查是否是 Web 模式
+    if (window.apiAdapter?.getMode?.() !== 'web') {
+      console.log('[App] Not in web mode, skipping WebSocket init');
+      return;
+    }
+    
+    // 检查 WebSocketClient 是否可用
+    if (typeof WebSocketClient === 'undefined') {
+      console.warn('[App] WebSocketClient not available');
+      return;
+    }
+    
+    try {
+      // 使用 Socket.IO 的 URL（与后端的 WebSocket 端口一致）
+      const wsUrl = 'ws://localhost:3333';
+      console.log('[App] Initializing WebSocket connection to', wsUrl);
+      
+      this.wsClient = new WebSocketClient({ url: wsUrl });
+      
+      // 设置事件转发到 apiAdapter
+      this.wsClient.on('happy:message', (data) => {
+        console.log('[App] WS happy:message', data);
+        window.apiAdapter?.emit?.('happy:message', data);
+      });
+      
+      this.wsClient.on('happy:connected', (data) => {
+        console.log('[App] WS happy:connected', data);
+        window.apiAdapter?.emit?.('happy:connected', data);
+      });
+      
+      this.wsClient.on('happy:disconnected', (data) => {
+        console.log('[App] WS happy:disconnected', data);
+        window.apiAdapter?.emit?.('happy:disconnected', data);
+      });
+      
+      this.wsClient.on('happy:eventStatus', (data) => {
+        console.log('[App] WS happy:eventStatus', data);
+        window.apiAdapter?.emit?.('happy:eventStatus', data);
+      });
+      
+      this.wsClient.on('happy:error', (data) => {
+        console.log('[App] WS happy:error', data);
+        window.apiAdapter?.emit?.('happy:error', data);
+      });
+      
+      this.wsClient.on('happy:usage', (data) => {
+        console.log('[App] WS happy:usage', data);
+        window.apiAdapter?.emit?.('happy:usage', data);
+      });
+      
+      this.wsClient.on('happy:messagesRestored', (data) => {
+        console.log('[App] WS happy:messagesRestored', data);
+        window.apiAdapter?.emit?.('happy:messagesRestored', data);
+      });
+      
+      this.wsClient.on('daemon:statusChanged', (data) => {
+        console.log('[App] WS daemon:statusChanged', data);
+        window.apiAdapter?.emit?.('daemon:statusChanged', data);
+      });
+      
+      this.wsClient.on('happy:initialized', (data) => {
+        console.log('[App] WS happy:initialized', data);
+        window.apiAdapter?.emit?.('happy:initialized', data);
+      });
+      
+      // 连接 WebSocket
+      await this.wsClient.connect();
+      
+      // 设置到 apiAdapter
+      window.apiAdapter?.setWebSocketClient?.(this.wsClient);
+      
+      console.log('[App] WebSocket connected');
+    } catch (error) {
+      console.error('[App] WebSocket connection failed:', error);
+    }
   }
 
   /**

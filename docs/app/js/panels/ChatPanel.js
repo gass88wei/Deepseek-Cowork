@@ -138,7 +138,7 @@ class ChatPanel {
   }
 
   /**
-   * 检查 AI 状态
+   * 检查 AI 状态，如果未连接则自动尝试连接
    */
   async checkAIStatus() {
     try {
@@ -148,16 +148,45 @@ class ChatPanel {
       }
       
       const status = await window.browserControlManager?.getAIStatus?.();
+      console.log('[ChatPanel] AI status:', status);
+      
       if (status) {
         this.updateAIStatus(status);
         
         // 如果已连接，加载历史消息
         if (status.isConnected) {
           await this.loadHappyMessageHistory();
+        } else {
+          // 如果未连接，自动尝试连接
+          console.log('[ChatPanel] AI not connected, attempting auto-connect...');
+          await this.autoConnectAI();
         }
       }
     } catch (error) {
       console.error('[ChatPanel] Failed to get AI status:', error);
+    }
+  }
+  
+  /**
+   * 自动连接 AI
+   */
+  async autoConnectAI() {
+    try {
+      const result = await window.browserControlManager?.connectAI?.();
+      console.log('[ChatPanel] Auto-connect result:', result);
+      
+      if (result?.success) {
+        // 重新获取状态并更新 UI
+        const status = await window.browserControlManager?.getAIStatus?.();
+        if (status) {
+          this.updateAIStatus(status);
+          if (status.isConnected) {
+            await this.loadHappyMessageHistory();
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[ChatPanel] Auto-connect failed:', error);
     }
   }
   
@@ -219,6 +248,16 @@ class ChatPanel {
     if (this.elements.aiStatusText) {
       const statusValue = this.aiConnected ? t('chat.connected') : t('chat.disconnected');
       this.elements.aiStatusText.textContent = statusValue;
+    }
+    
+    // 更新事件状态（idle/processing/ready）
+    if (status.eventStatus) {
+      this.updateHappyEventStatus(status.eventStatus);
+    } else if (this.aiConnected) {
+      // 如果已连接但没有 eventStatus，默认设为 ready
+      this.updateHappyEventStatus('ready');
+    } else {
+      this.updateHappyEventStatus('disconnected');
     }
     
     this.updateAISendButton();

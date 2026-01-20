@@ -125,7 +125,7 @@ const API_MAPPING = {
     'saveClaudeCodeSettings': { method: 'PUT', path: '/api/settings/claude' },
     'getClaudePresets': { method: 'GET', path: '/api/settings/claude/presets' },
     'getClaudeCodePresets': { method: 'GET', path: '/api/settings/claude/presets' },
-    'setClaudeAuthToken': { method: 'PUT', path: '/api/settings/claude' },
+    'setClaudeAuthToken': { method: 'PUT', path: '/api/settings/claude', bodyKey: 'authToken' },
     'deleteClaudeAuthToken': { method: 'PUT', path: '/api/settings/claude' },
     'getDependencyStatus': { method: 'GET', path: '/api/deps/status' },
     'checkAllDependencies': { method: 'GET', path: '/api/deps/check' },
@@ -628,10 +628,22 @@ function createBrowserControlManagerPolyfill() {
         getLatestUsage: createApiMethod('getLatestUsage'),  // 直接名称
         allowAiPermission: createApiMethod('allowPermission'),
         allowPermission: createApiMethod('allowPermission'),  // 直接名称
-        denyAiPermission: createApiMethod('denyPermission'),
-        denyPermission: createApiMethod('denyPermission'),  // 直接名称
-        abortAi: createApiMethod('abortSession'),
-        abortSession: createApiMethod('abortSession'),  // 直接名称
+        denyAiPermission: async (sessionId, permissionId) => {
+            if (!window.apiAdapter?.isConnected()) await waitForConnection();
+            return await window.apiAdapter.call('denyPermission', { sessionId, permissionId });
+        },
+        denyPermission: async (sessionId, permissionId) => {
+            if (!window.apiAdapter?.isConnected()) await waitForConnection();
+            return await window.apiAdapter.call('denyPermission', { sessionId, permissionId });
+        },
+        abortAi: async (sessionId) => {
+            if (!window.apiAdapter?.isConnected()) await waitForConnection();
+            return await window.apiAdapter.call('abortSession', { sessionId });
+        },
+        abortSession: async (sessionId) => {
+            if (!window.apiAdapter?.isConnected()) await waitForConnection();
+            return await window.apiAdapter.call('abortSession', { sessionId });
+        },
         getAllSessions: createApiMethod('getAllSessions'),
         getSessionId: createApiMethod('getSessionId'),
         reconnectSession: createApiMethod('reconnectSession'),
@@ -823,7 +835,7 @@ function createBrowserControlManagerPolyfill() {
         onHappyDisconnected: createEventListener('happy:disconnected'),
         onHappyEventStatus: createEventListener('happy:eventStatus'),
         onHappyError: createEventListener('happy:error'),
-        onUsageUpdate: createEventListener('happy:usageUpdate'),
+        onUsageUpdate: createEventListener('happy:usage'),
         onHappyMessagesRestored: createEventListener('happy:messagesRestored'),
         onHappyServiceStatus: createEventListener('happy:serviceStatus'),
         onDaemonStatusChanged: createEventListener('daemon:statusChanged'),
