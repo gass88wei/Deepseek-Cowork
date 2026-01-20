@@ -127,8 +127,8 @@ const API_MAPPING = {
     'getClaudeCodePresets': { method: 'GET', path: '/api/settings/claude/presets' },
     'setClaudeAuthToken': { method: 'PUT', path: '/api/settings/claude' },
     'deleteClaudeAuthToken': { method: 'PUT', path: '/api/settings/claude' },
-    'getDependencyStatus': { method: 'GET', path: '/api/status' },
-    'checkAllDependencies': { method: 'GET', path: '/api/status' },
+    'getDependencyStatus': { method: 'GET', path: '/api/deps/status' },
+    'checkAllDependencies': { method: 'GET', path: '/api/deps/check' },
     'clearLogs': { method: 'DELETE', path: '/api/logs' },
     'getServerLogs': { method: 'GET', path: '/api/logs' },
     
