@@ -115,7 +115,7 @@ const API_MAPPING = {
     'getAllHappySettings': { method: 'GET', path: '/api/settings/happy/all' },
     'saveHappySettings': { method: 'PUT', path: '/api/settings/happy' },
     'getWorkspaceSettings': { method: 'GET', path: '/api/settings/workspace' },
-    'setWorkspaceDir': { method: 'PUT', path: '/api/settings/workspace' },
+    'setWorkspaceDir': { method: 'PUT', path: '/api/settings/workspace', bodyKey: 'path' },
     'resetWorkspaceDir': { method: 'DELETE', path: '/api/settings/workspace' },
     'selectWorkspaceDir': { method: 'PUT', path: '/api/settings/workspace' },
     'getWorkDirs': { method: 'GET', path: '/api/settings/workdirs' },

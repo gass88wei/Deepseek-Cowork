@@ -612,6 +612,7 @@
       saveSettingsFailed: 'Failed to save settings',
       restartFailed: 'Restart failed',
       workDirSwitched: 'Working directory switched',
+      workspaceDirSet: 'Working directory set',
       switchDirFailed: 'Failed to switch directory',
       selectDirFailed: 'Failed to select directory',
       resetToDefault: 'Reset to default directory',

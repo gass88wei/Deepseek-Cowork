@@ -612,6 +612,7 @@
       saveSettingsFailed: '保存设置失败',
       restartFailed: '重启失败',
       workDirSwitched: '工作目录已切换',
+      workspaceDirSet: '工作目录已设置',
       switchDirFailed: '切换目录失败',
       selectDirFailed: '选择目录失败',
       resetToDefault: '已重置为默认目录',
