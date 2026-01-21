@@ -1,7 +1,7 @@
 [
   {
     "slug": "hybrid-architecture",
-    "title": "Abandoning the Backend: An Independent Developer's Architecture Practice for Building an Open-Source Claude Cowork",
+    "title": "Abandoning the Backend: An Indie Dev’s Architecture Practice for Building an Open-Source Claude Cowork",
     "date": "2026-01-22",
     "summary": "Exploring a new path for AI product architecture: abandoning heavy backends and balancing cloud convenience with local security through Hybrid architecture.",
     "cover": "https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=800&q=80",

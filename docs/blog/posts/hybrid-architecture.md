@@ -1,5 +1,5 @@
 ---
-title: Abandoning the Backend: An Independent Developer's Architecture Practice for Building an Open-Source Claude Cowork
+title: Abandoning the Backend: An Indie Dev’s Architecture Practice for Building an Open-Source Claude Cowork
 date: 2026-01-22
 ---
 
