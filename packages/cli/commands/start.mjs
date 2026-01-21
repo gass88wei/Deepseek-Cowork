@@ -10,7 +10,7 @@ import { spawn } from 'child_process';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { existsSync, writeFileSync, readFileSync } from 'fs';
-import { getLocalService, getConfig } from '../index.mjs';
+import { getLocalService, getConfig, PROJECT_ROOT } from '../index.mjs';
 import { checkPort, writePidFile, readPidFile, isProcessRunning } from '../utils/process.mjs';
 
 /**
@@ -52,10 +52,8 @@ export async function startCommand(options) {
             const __dirname = dirname(__filename);
             const startScript = join(__dirname, 'start-daemon.mjs');
             
-            // 创建后台启动脚本（如果不存在）
-            if (!existsSync(startScript)) {
-                createDaemonScript(startScript);
-            }
+            // 创建后台启动脚本（总是重新创建，确保路径正确）
+            createDaemonScript(startScript, PROJECT_ROOT);
             
             // 启动后台进程
             const child = spawn(process.execPath, [
@@ -173,8 +171,13 @@ export async function startCommand(options) {
 
 /**
  * 创建后台启动脚本
+ * @param {string} scriptPath 脚本保存路径
+ * @param {string} packageRoot 包根目录（用于定位 lib/local-service）
  */
-function createDaemonScript(scriptPath) {
+function createDaemonScript(scriptPath, packageRoot) {
+    // 使用绝对路径，确保在任何位置都能正确找到模块
+    const localServicePath = join(packageRoot, 'lib', 'local-service').replace(/\\/g, '/');
+    
     const script = `#!/usr/bin/env node
 
 /**
@@ -182,11 +185,11 @@ function createDaemonScript(scriptPath) {
  * 自动生成，请勿手动修改
  */
 
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import { createRequire } from 'module';
+const require = createRequire(import.meta.url);
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// 使用绝对路径加载 local-service
+const localService = require('${localServicePath}');
 
 // 解析命令行参数
 const args = process.argv.slice(2);
@@ -203,10 +206,6 @@ for (let i = 0; i < args.length; i++) {
         options.debug = true;
     }
 }
-
-// 导入并启动服务
-const { getLocalService } = await import('../index.mjs');
-const localService = await getLocalService();
 
 async function main() {
     try {

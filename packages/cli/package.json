@@ -1,6 +1,6 @@
 {
   "name": "deepseek-cowork",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Open-Source Alternative to Claude Cowork - CLI Tool",
   "author": "imjszhang",
   "license": "MIT",
@@ -31,7 +31,9 @@
     "start": "node bin/cli.mjs start",
     "dev": "node bin/cli.mjs start --debug",
     "link": "npm link",
-    "prepublishOnly": "echo 准备发布...",
+    "build": "node build.mjs",
+    "prepublishOnly": "npm run build",
+    "publish:npm": "npm run build && cd dist && npm publish",
     "version:patch": "npm version patch",
     "version:minor": "npm version minor",
     "version:major": "npm version major"
@@ -56,5 +58,8 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
     "access": "public"
+  },
+  "devDependencies": {
+    "esbuild": "^0.27.2"
   }
 }

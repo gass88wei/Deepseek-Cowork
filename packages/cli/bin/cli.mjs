@@ -9,12 +9,29 @@
 import { program } from 'commander';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
-import { readFileSync } from 'fs';
+import { readFileSync, existsSync } from 'fs';
 
 // 获取包根目录
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-const packageRoot = join(__dirname, '..');
+
+// 智能查找 package.json
+// - 打包后: cli.mjs 和 package.json 在同一目录
+// - 开发模式: cli.mjs 在 bin/ 子目录，package.json 在父目录
+function findPackageRoot() {
+    // 先检查当前目录
+    if (existsSync(join(__dirname, 'package.json'))) {
+        return __dirname;
+    }
+    // 再检查父目录（开发模式）
+    if (existsSync(join(__dirname, '..', 'package.json'))) {
+        return join(__dirname, '..');
+    }
+    // 默认返回当前目录
+    return __dirname;
+}
+
+const packageRoot = findPackageRoot();
 
 // 读取 package.json
 const packageJson = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
