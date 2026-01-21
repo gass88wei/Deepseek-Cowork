@@ -206,34 +206,42 @@ class WorkspaceSettings {
       const result = await window.browserControlManager.selectWorkspaceDir();
       
       if (result?.success && result.path) {
-        // 调用 switchWorkDir 来实际切换目录
-        const switchResult = await window.browserControlManager.switchWorkDir?.(result.path);
+        // 显示加载遮罩，阻止用户操作
+        this.app?.showLoadingOverlay?.(t('notifications.switchingWorkDir') || '正在切换工作目录...');
         
-        if (switchResult?.success) {
-          this.workspaceDir = result.path;
+        try {
+          // 调用 switchWorkDir 来实际切换目录
+          const switchResult = await window.browserControlManager.switchWorkDir?.(result.path);
           
-          if (this.elements.workspaceDirInput) {
-            this.elements.workspaceDirInput.value = result.path;
+          if (switchResult?.success) {
+            this.workspaceDir = result.path;
+            
+            if (this.elements.workspaceDirInput) {
+              this.elements.workspaceDirInput.value = result.path;
+            }
+            
+            // 更新状态栏工作目录显示
+            this.app?.updateStatusBarWorkspace?.(result.path);
+            
+            // 重置文件面板状态并刷新
+            if (this.app) {
+              this.app.workspaceRoot = null;
+              this.app.currentFilePath = null;
+              this.app.filePathHistory = [];
+              await this.app.initFilesPanel?.();
+            }
+            
+            // 清空对话框并重新加载新目录的对话历史
+            this.app?.clearAIMessages?.();
+            await this.app?.loadHappyMessageHistory?.();
+            
+            this.app?.showNotification?.(t('notifications.workspaceDirSet'), 'success');
+          } else {
+            this.app?.showNotification?.(switchResult?.error || t('notifications.operationFailed'), 'error');
           }
-          
-          // 更新状态栏工作目录显示
-          this.app?.updateStatusBarWorkspace?.(result.path);
-          
-          // 重置文件面板状态并刷新
-          if (this.app) {
-            this.app.workspaceRoot = null;
-            this.app.currentFilePath = null;
-            this.app.filePathHistory = [];
-            await this.app.initFilesPanel?.();
-          }
-          
-          // 清空对话框并重新加载新目录的对话历史
-          this.app?.clearAIMessages?.();
-          await this.app?.loadHappyMessageHistory?.();
-          
-          this.app?.showNotification?.(t('notifications.workspaceDirSet'), 'success');
-        } else {
-          this.app?.showNotification?.(switchResult?.error || t('notifications.operationFailed'), 'error');
+        } finally {
+          // 隐藏加载遮罩
+          this.app?.hideLoadingOverlay?.();
         }
       } else if (result?.cancelled) {
         // 用户取消，不做任何处理
@@ -242,6 +250,7 @@ class WorkspaceSettings {
       }
     } catch (error) {
       console.error('[WorkspaceSettings] Select dir error:', error);
+      this.app?.hideLoadingOverlay?.();
       this.app?.showNotification?.(t('notifications.operationFailed') + ': ' + error.message, 'error');
     }
   }
@@ -251,6 +260,9 @@ class WorkspaceSettings {
    */
   async resetWorkspaceDir() {
     const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
+    
+    // 显示加载遮罩，阻止用户操作
+    this.app?.showLoadingOverlay?.(t('notifications.resettingToDefault') || '正在重置为默认目录...');
     
     try {
       const result = await window.browserControlManager.resetWorkspaceDir();
@@ -284,6 +296,9 @@ class WorkspaceSettings {
     } catch (error) {
       console.error('[WorkspaceSettings] Reset dir error:', error);
       this.app?.showNotification?.(t('notifications.operationFailed') + ': ' + error.message, 'error');
+    } finally {
+      // 隐藏加载遮罩
+      this.app?.hideLoadingOverlay?.();
     }
   }
 

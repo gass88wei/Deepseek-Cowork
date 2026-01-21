@@ -439,9 +439,13 @@ class BrowserControlManagerApp {
     this.navButtons = document.querySelectorAll('.nav-btn');
     this.panels = document.querySelectorAll('#display-panel .panel');
     
-    // 加载覆盖层
+    // 加载覆盖层（浏览器面板内的局部遮罩）
     this.loadingOverlay = document.getElementById('loading-overlay');
     this.loadingText = this.loadingOverlay?.querySelector('.loading-text');
+    
+    // 全屏加载遮罩
+    this.globalLoadingOverlay = document.getElementById('global-loading-overlay');
+    this.globalLoadingText = this.globalLoadingOverlay?.querySelector('.loading-text');
     
     // 状态栏元素已简化，主要状态由 BrowserControlModule 管理
     
@@ -1373,19 +1377,20 @@ class BrowserControlManagerApp {
   }
 
   /**
-   * 显示加载覆盖层
+   * 显示全屏加载覆盖层
+   * @param {string} message 加载提示文字
    */
   showLoadingOverlay(message = null) {
     const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
-    if (this.loadingText) this.loadingText.textContent = message || t('common.loading');
-    this.loadingOverlay?.classList.remove('hidden');
+    if (this.globalLoadingText) this.globalLoadingText.textContent = message || t('common.loading');
+    this.globalLoadingOverlay?.classList.remove('hidden');
   }
 
   /**
-   * 隐藏加载覆盖层
+   * 隐藏全屏加载覆盖层
    */
   hideLoadingOverlay() {
-    this.loadingOverlay?.classList.add('hidden');
+    this.globalLoadingOverlay?.classList.add('hidden');
   }
 
   /**
