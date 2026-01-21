@@ -14,9 +14,15 @@
   </url>
   <url>
     <loc>https://deepseek-cowork.com/blog/</loc>
-    <lastmod>2026-01-21</lastmod>
+    <lastmod>2026-01-22</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://deepseek-cowork.com/blog/post.html?slug=hybrid-architecture</loc>
+    <lastmod>2026-01-22</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
   </url>
   <url>
     <loc>https://deepseek-cowork.com/blog/post.html?slug=welcome</loc>
