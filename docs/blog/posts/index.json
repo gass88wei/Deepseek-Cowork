@@ -4,6 +4,7 @@
     "title": "Welcome to DeepSeek Cowork Blog",
     "date": "2026-01-21",
     "summary": "Welcome to the DeepSeek Cowork blog! Here we share project updates, technical insights, and tutorials.",
+    "cover": "https://images.unsplash.com/photo-1677442136019-21780ecad995?w=800&q=80",
     "tags": ["Announcement"],
     "author": {
       "name": "imjszhang",
@@ -16,6 +17,7 @@
     "title": "Getting Started with DeepSeek Cowork",
     "date": "2026-01-21",
     "summary": "Learn how to quickly install and configure DeepSeek Cowork to let AI assist you with daily tasks.",
+    "cover": "https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&q=80",
     "tags": ["Tutorial", "Getting Started"],
     "author": {
       "name": "imjszhang",

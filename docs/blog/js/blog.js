@@ -49,43 +49,48 @@ const Blog = {
     },
 
     /**
-     * Render single post card
+     * Render single post card (Gallery style with cover image)
      */
     renderPostCard(post) {
         const tagsHTML = post.tags && post.tags.length > 0 
             ? post.tags.map(tag => `<span class="tag px-2 py-1 rounded text-xs text-neutral-400">${this.escapeHtml(tag)}</span>`).join('')
             : '';
 
-        const authorHTML = post.author ? `
-            <a href="${post.author.url}" target="_blank" class="flex items-center gap-2 hover:opacity-80 transition-opacity" onclick="event.stopPropagation()">
-                <img src="${post.author.avatar}" alt="${this.escapeHtml(post.author.name)}" class="w-5 h-5 rounded-full border border-white/10" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(post.author.name)}&background=333&color=fff&size=40'">
+        const authorImgHTML = post.author ? `
+            <div class="flex items-center gap-2">
+                <img src="${post.author.avatar}" alt="${this.escapeHtml(post.author.name)}" class="w-6 h-6 rounded-full border border-white/20" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(post.author.name)}&background=333&color=fff&size=48'">
                 <span class="text-xs text-neutral-400">@${this.escapeHtml(post.author.name)}</span>
-            </a>
+            </div>
+        ` : '';
+
+        const coverHTML = post.cover ? `
+            <div class="relative w-full h-40 mb-4 rounded-xl overflow-hidden bg-neutral-900">
+                <img src="${post.cover}" alt="${this.escapeHtml(post.title)}" 
+                     class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                     onerror="this.parentElement.style.display='none'">
+            </div>
         ` : '';
 
         return `
-            <a href="./post.html?slug=${encodeURIComponent(post.slug)}" class="block post-card glass-card rounded-2xl p-6 hover:border-white/20">
-                <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                    <div class="flex-1 min-w-0">
-                        <h2 class="text-xl font-semibold text-white mb-2 group-hover:text-white/90">
-                            ${this.escapeHtml(post.title)}
-                        </h2>
-                        <p class="text-neutral-400 text-sm leading-relaxed mb-3 line-clamp-2">
-                            ${this.escapeHtml(post.summary || '')}
-                        </p>
-                        <div class="flex flex-wrap items-center gap-3">
-                            ${authorHTML}
-                            <span class="text-neutral-600">·</span>
-                            <time class="text-xs text-neutral-500" datetime="${post.date}">
-                                ${this.formatDate(post.date)}
-                            </time>
-                            ${tagsHTML ? `<div class="flex flex-wrap gap-2">${tagsHTML}</div>` : ''}
-                        </div>
-                    </div>
-                    <div class="flex-shrink-0 text-neutral-500">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                        </svg>
+            <a href="./post.html?slug=${encodeURIComponent(post.slug)}" class="group block post-card glass-card rounded-2xl overflow-hidden h-full">
+                <div class="flex flex-col h-full p-5">
+                    ${coverHTML}
+                    
+                    ${tagsHTML ? `<div class="flex flex-wrap gap-2 mb-3">${tagsHTML}</div>` : ''}
+                    
+                    <h2 class="text-lg font-semibold text-white mb-2 group-hover:text-white/90 transition-colors line-clamp-2">
+                        ${this.escapeHtml(post.title)}
+                    </h2>
+                    
+                    <p class="text-neutral-400 text-sm leading-relaxed mb-4 line-clamp-2 flex-grow">
+                        ${this.escapeHtml(post.summary || '')}
+                    </p>
+                    
+                    <div class="flex items-center justify-between pt-3 border-t border-white/5 mt-auto">
+                        ${authorImgHTML}
+                        <time class="text-xs text-neutral-500" datetime="${post.date}">
+                            ${this.formatDate(post.date)}
+                        </time>
                     </div>
                 </div>
             </a>
@@ -149,7 +154,7 @@ const Blog = {
     },
 
     /**
-     * Render post header
+     * Render post header (with cover image above title)
      */
     renderPostHeader(container, post) {
         const tagsHTML = post.tags && post.tags.length > 0 
@@ -166,7 +171,16 @@ const Blog = {
             </a>
         ` : '';
 
+        const coverHTML = post.cover ? `
+            <div class="relative w-full aspect-video mb-8 rounded-2xl overflow-hidden bg-neutral-900">
+                <img src="${post.cover}" alt="${this.escapeHtml(post.title)}" 
+                     class="w-full h-full object-cover"
+                     onerror="this.parentElement.style.display='none'">
+            </div>
+        ` : '';
+
         container.innerHTML = `
+            ${coverHTML}
             <h1 class="text-3xl sm:text-4xl font-bold text-white mb-6 leading-tight">
                 ${this.escapeHtml(post.title)}
             </h1>
@@ -191,6 +205,9 @@ const Blog = {
      * Update page meta information
      */
     updatePageMeta(post) {
+        const baseUrl = 'https://deepseek-cowork.com/blog/';
+        const postUrl = `${baseUrl}post.html?slug=${encodeURIComponent(post.slug)}`;
+        
         // Update title
         document.title = `${post.title} - DeepSeek Cowork Blog`;
         
@@ -200,19 +217,52 @@ const Blog = {
             descEl.setAttribute('content', post.summary);
         }
         
+        // Update keywords
+        const keywordsEl = document.getElementById('meta-keywords');
+        if (keywordsEl && post.tags) {
+            keywordsEl.setAttribute('content', ['deepseek cowork', ...post.tags].join(', '));
+        }
+        
+        // Update canonical URL
+        const canonicalEl = document.getElementById('canonical-url');
+        if (canonicalEl) {
+            canonicalEl.setAttribute('href', postUrl);
+        }
+        
         // Update Open Graph
         const ogTitleEl = document.getElementById('og-title');
         const ogDescEl = document.getElementById('og-description');
+        const ogUrlEl = document.getElementById('og-url');
         if (ogTitleEl) ogTitleEl.setAttribute('content', post.title);
         if (ogDescEl && post.summary) ogDescEl.setAttribute('content', post.summary);
+        if (ogUrlEl) ogUrlEl.setAttribute('content', postUrl);
+        
+        // Update article published time
+        const articlePublishedEl = document.getElementById('article-published');
+        if (articlePublishedEl && post.date) {
+            articlePublishedEl.setAttribute('content', new Date(post.date).toISOString());
+        }
+        
+        // Update Twitter Card
+        const twitterTitleEl = document.getElementById('twitter-title');
+        const twitterDescEl = document.getElementById('twitter-description');
+        if (twitterTitleEl) twitterTitleEl.setAttribute('content', post.title);
+        if (twitterDescEl && post.summary) twitterDescEl.setAttribute('content', post.summary);
     },
 
     /**
-     * Remove YAML frontmatter
+     * Remove YAML frontmatter and first H1 title (to avoid duplicate title)
      */
     removeFrontmatter(markdown) {
+        // Remove YAML frontmatter
         const frontmatterRegex = /^---\s*\n[\s\S]*?\n---\s*\n/;
-        return markdown.replace(frontmatterRegex, '');
+        let content = markdown.replace(frontmatterRegex, '');
+        
+        // Remove first H1 title if it exists (since we render title in header)
+        const h1Regex = /^\s*#\s+[^\n]+\n+/;
+        content = content.replace(h1Regex, '');
+        
+        return content;
     },
 
     /**
