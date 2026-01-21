@@ -202,20 +202,28 @@ class WorkspaceSettings {
     const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
     
     try {
+      // selectWorkspaceDir 只返回用户选择的路径
       const result = await window.browserControlManager.selectWorkspaceDir();
       
       if (result?.success && result.path) {
-        this.workspaceDir = result.path;
+        // 调用 switchWorkDir 来实际切换目录
+        const switchResult = await window.browserControlManager.switchWorkDir?.(result.path);
         
-        if (this.elements.workspaceDirInput) {
-          this.elements.workspaceDirInput.value = result.path;
-        }
-        
-        this.app?.showNotification?.(t('notifications.workspaceDirSet'), 'success');
-        
-        // 触发应用重新加载
-        if (this.app?.initFilesPanel) {
-          await this.app.initFilesPanel();
+        if (switchResult?.success) {
+          this.workspaceDir = result.path;
+          
+          if (this.elements.workspaceDirInput) {
+            this.elements.workspaceDirInput.value = result.path;
+          }
+          
+          this.app?.showNotification?.(t('notifications.workspaceDirSet'), 'success');
+          
+          // 触发应用重新加载
+          if (this.app?.initFilesPanel) {
+            await this.app.initFilesPanel();
+          }
+        } else {
+          this.app?.showNotification?.(switchResult?.error || t('notifications.operationFailed'), 'error');
         }
       } else if (result?.cancelled) {
         // 用户取消，不做任何处理

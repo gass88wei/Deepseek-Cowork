@@ -323,6 +323,7 @@
       selectDir: '选择目录',
       resetDefault: '重置为默认',
       defaultDir: '默认目录',
+      enterWorkspacePath: '请输入工作目录的完整路径：',
       
       // 外观设置
       appearance: '外观设置',

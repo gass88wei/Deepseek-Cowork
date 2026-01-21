@@ -684,7 +684,38 @@ function createBrowserControlManagerPolyfill() {
         getWorkspaceSettings: createApiMethod('getWorkspaceSettings'),
         setWorkspaceDir: createApiMethod('setWorkspaceDir'),
         resetWorkspaceDir: createApiMethod('resetWorkspaceDir'),
-        selectWorkspaceDir: createApiMethod('selectWorkspaceDir'),
+        selectWorkspaceDir: async () => {
+            // Web 模式下无法使用原生文件选择对话框
+            // 改为弹出输入框让用户输入路径
+            // 注意：此方法只返回用户输入的路径，不执行设置操作（与 Electron 版行为一致）
+            // 实际设置由调用方（如 app.js 中的 switchWorkDir）完成
+            const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
+            
+            // 获取当前工作目录作为默认值
+            let currentDir = '';
+            try {
+                if (window.apiAdapter?.isConnected()) {
+                    const settings = await window.apiAdapter.call('getWorkspaceSettings');
+                    currentDir = settings?.workspaceDir || settings?.currentWorkDir || settings?.defaultWorkspaceDir || '';
+                }
+            } catch (e) {
+                console.warn('[Polyfill] Failed to get current workspace dir:', e);
+            }
+            
+            // 使用 DialogManager.prompt 或原生 prompt
+            const promptMessage = t('settings.enterWorkspacePath') || 'Enter workspace directory path:';
+            const inputPath = window.DialogManager 
+                ? await window.DialogManager.prompt(promptMessage, currentDir)
+                : window.prompt(promptMessage, currentDir);
+            
+            if (!inputPath) {
+                // 用户取消
+                return { success: false, cancelled: true };
+            }
+            
+            // 返回用户输入的路径（与 Electron 版行为一致）
+            return { success: true, path: inputPath };
+        },
         getWorkDirs: createApiMethod('getWorkDirs'),
         listWorkDirs: createApiMethod('getWorkDirs'),  // 别名
         switchWorkDir: createApiMethod('setWorkspaceDir'),  // 切换工作目录使用 setWorkspaceDir

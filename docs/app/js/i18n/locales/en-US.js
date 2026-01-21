@@ -323,6 +323,7 @@
       selectDir: 'Select Directory',
       resetDefault: 'Reset to Default',
       defaultDir: 'Default Directory',
+      enterWorkspacePath: 'Enter the full path of the workspace directory:',
       
       // Appearance section
       appearance: 'Appearance',
