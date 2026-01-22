@@ -42,16 +42,27 @@
   <link id="hljs-theme" rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.9.0/styles/atom-one-light.min.css">
   <!-- Three.js 3D 图形库 -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-  <!-- PDF.js PDF渲染库 -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs" type="module"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs" type="module"></script>
+  <!-- PDF.js - 按需加载，避免 ES module 阻塞问题 -->
   <script>
-    // PDF.js 初始化配置（非模块方式加载备用）
-    window.pdfjsLibPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs').then(pdfjs => {
-      pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
-      window.pdfjsLib = pdfjs;
-      return pdfjs;
-    });
+    // PDF.js 延迟加载函数（只在需要时加载）
+    window.loadPdfJs = function() {
+      if (window.pdfjsLibPromise) {
+        return window.pdfjsLibPromise;
+      }
+      window.pdfjsLibPromise = import('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.mjs')
+        .then(pdfjs => {
+          pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.mjs';
+          window.pdfjsLib = pdfjs;
+          console.log('[PDF.js] Loaded successfully');
+          return pdfjs;
+        })
+        .catch(error => {
+          console.error('[PDF.js] Failed to load:', error);
+          window.pdfjsLibPromise = null;
+          throw error;
+        });
+      return window.pdfjsLibPromise;
+    };
   </script>
 </head>
 <body>

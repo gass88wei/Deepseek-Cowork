@@ -1706,9 +1706,13 @@ class ExplorerModule {
                       (typeof process === 'undefined' || !process.versions?.electron);
 
     try {
-      // 等待 PDF.js 库加载
-      if (!window.pdfjsLib && window.pdfjsLibPromise) {
-        await window.pdfjsLibPromise;
+      // 按需加载 PDF.js 库
+      if (!window.pdfjsLib) {
+        if (typeof window.loadPdfJs === 'function') {
+          await window.loadPdfJs();
+        } else if (window.pdfjsLibPromise) {
+          await window.pdfjsLibPromise;
+        }
       }
       
       if (!window.pdfjsLib) {
