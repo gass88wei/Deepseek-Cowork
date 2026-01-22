@@ -185,87 +185,13 @@ class AccountSetup {
         // 已登录状态
         this.renderLoggedInState(accountInfo);
       } else {
-        // 未登录状态 - 自动注册新账户
+        // 未登录状态 - 显示欢迎对话框让用户选择
         this.renderNotLoggedInState();
-        await this.autoRegisterAndLogin();
+        this.showWelcomeSetupDialog();
       }
     } catch (error) {
       console.error('[AccountSetup] loadAccountInfo error:', error);
       this.renderNotLoggedInState();
-    }
-  }
-
-  /**
-   * 自动注册并登录
-   * 首次启动时自动生成 Secret 并完成登录，无需用户操作
-   * 失败时回退到欢迎对话框让用户手动处理
-   */
-  async autoRegisterAndLogin() {
-    console.log('[AccountSetup] Starting auto registration...');
-    
-    const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
-    try {
-      // 1. 显示加载状态
-      this.showNotification(t('notifications.initializingAccount'), 'info');
-      
-      // 2. 生成新的 Secret
-      console.log('[AccountSetup] Generating new secret...');
-      const generateResult = await window.browserControlManager?.generateHappySecret?.();
-      
-      if (!generateResult?.success) {
-        throw new Error(generateResult?.error || '生成 Secret 失败');
-      }
-      
-      console.log('[AccountSetup] Secret generated successfully');
-      
-      // 3. 验证 Secret（连接服务器）
-      console.log('[AccountSetup] Verifying secret with server...');
-      const verifyResult = await window.browserControlManager?.verifyHappySecret?.(generateResult.base64url);
-      
-      if (!verifyResult?.success) {
-        throw new Error(verifyResult?.error || '验证 Secret 失败');
-      }
-      
-      console.log('[AccountSetup] Secret verified successfully');
-      
-      // 4. 保存 Secret
-      console.log('[AccountSetup] Saving secret...');
-      const saveResult = await window.browserControlManager?.saveHappySecret?.(
-        generateResult.base64url,
-        verifyResult.token
-      );
-      
-      if (!saveResult?.success) {
-        throw new Error(saveResult?.error || '保存 Secret 失败');
-      }
-      
-      console.log('[AccountSetup] Secret saved successfully');
-      
-      // 5. 刷新账户信息并渲染已登录状态
-      const newAccountInfo = await window.browserControlManager?.getAccountInfo?.();
-      this.accountInfo = newAccountInfo;
-      this.renderLoggedInState(newAccountInfo);
-      
-      // 6. 显示成功通知，提醒备份
-      this.showNotification(t('notifications.accountAutoCreated'), 'success');
-      
-      console.log('[AccountSetup] Auto registration completed successfully');
-      
-      // 7. 如果需要重启（热切换失败等情况）
-      if (saveResult.needsRestart) {
-        this.showRestartPrompt();
-      }
-      
-    } catch (error) {
-      console.error('[AccountSetup] Auto registration failed:', error);
-      
-      // 自动注册失败，回退到欢迎对话框让用户手动处理
-      this.showNotification(t('notifications.autoCreateFailed'), 'warning');
-      
-      // 延迟显示欢迎对话框
-      setTimeout(() => {
-        this.showWelcomeSetupDialog();
-      }, 500);
     }
   }
 

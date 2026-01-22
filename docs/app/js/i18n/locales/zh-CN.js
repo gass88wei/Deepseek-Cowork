@@ -655,8 +655,6 @@
       invalidFileName: '文件名称包含非法字符',
       enterNewName: '请输入新名称',
       invalidName: '名称包含非法字符',
-      accountAutoCreated: '账户已自动创建，建议在设置中备份 Secret Key',
-      autoCreateFailed: '自动创建账户失败，请手动配置',
       noAnonIdToCopy: '无可复制的匿名 ID',
       anonIdCopied: '匿名 ID 已复制',
       copyFailed: '复制失败',

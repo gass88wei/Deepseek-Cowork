@@ -655,8 +655,6 @@
       invalidFileName: 'File name contains invalid characters',
       enterNewName: 'Please enter new name',
       invalidName: 'Name contains invalid characters',
-      accountAutoCreated: 'Account created automatically, please backup your Secret Key in settings',
-      autoCreateFailed: 'Auto create account failed, please configure manually',
       noAnonIdToCopy: 'No Anonymous ID to copy',
       anonIdCopied: 'Anonymous ID copied',
       copyFailed: 'Copy failed',
