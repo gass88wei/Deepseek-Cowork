@@ -949,6 +949,8 @@ class BrowserControlManagerApp {
         await this.loadAccountInfo?.();
         // 刷新设置面板
         await this.loadHappySettings?.();
+        // 刷新 daemon 状态（兜底保障，确保 UI 状态与后端同步）
+        await this.daemonManager?.loadStatus?.();
         // 显示成功提示
         const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
         this.showNotification(t('notifications.loginSuccess'), 'success');

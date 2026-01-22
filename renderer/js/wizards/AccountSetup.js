@@ -918,7 +918,10 @@ class AccountSetup {
     const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
     // 根据保存结果决定是否显示重启提示
     const saveResult = this._lastSaveResult;
-    if (saveResult?.hotSwitched) {
+    if (saveResult?.daemonStarted) {
+      // 首次登录，daemon 已自动启动
+      this.showNotification(t('notifications.loginSuccess'), 'success');
+    } else if (saveResult?.hotSwitched) {
       // 热切换成功，无需重启
       this.showNotification(t('notifications.accountSwitched'), 'success');
     } else if (saveResult?.needsRestart) {
