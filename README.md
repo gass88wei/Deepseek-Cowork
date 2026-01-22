@@ -179,8 +179,8 @@ Visit [deepseek-cowork.com](https://deepseek-cowork.com) to try the web interfac
 ### Setup Local Service
 
 ```bash
-# Install CLI tool globally
-npm install -g deepseek-cowork
+# Install CLI tool globally (latest version: 0.1.5)
+npm install -g deepseek-cowork@0.1.5
 
 # Start local service (background mode)
 deepseek-cowork start --daemon
@@ -190,6 +190,8 @@ deepseek-cowork open
 ```
 
 ### CLI Commands Reference
+
+> **CLI Version**: `deepseek-cowork@0.1.5`
 
 | Command | Description |
 |---------|-------------|

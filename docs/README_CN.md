@@ -179,8 +179,8 @@ npm start
 ### 配置本地服务
 
 ```bash
-# 全局安装 CLI 工具
-npm install -g deepseek-cowork
+# 全局安装 CLI 工具（最新版本: 0.1.5）
+npm install -g deepseek-cowork@0.1.5
 
 # 启动本地服务（后台模式）
 deepseek-cowork start --daemon
@@ -190,6 +190,8 @@ deepseek-cowork open
 ```
 
 ### CLI 命令参考
+
+> **CLI 版本**: `deepseek-cowork@0.1.5`
 
 | 命令 | 说明 |
 |------|------|
