@@ -657,12 +657,63 @@ function createBrowserControlManagerPolyfill() {
         listDirectory: createApiMethod('listDirectory'),
         createFolder: createApiMethod('createFolder'),
         deleteItem: createApiMethod('deleteItem'),
-        renameItem: createApiMethod('renameItem'),
+        renameItem: async (oldPath, newPath) => {
+            // 自定义实现：需要正确构建 { oldPath, newPath } 请求体
+            if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
+                const connected = await waitForConnection();
+                if (!connected) return { success: false, error: 'Not connected' };
+            }
+            try {
+                const response = await fetch(`${window.apiAdapter._baseUrl}/api/files/rename`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ oldPath, newPath })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('[Polyfill] renameItem failed:', error);
+                return { success: false, error: error.message };
+            }
+        },
         readFileContent: createApiMethod('readFileContent'),
         saveFileContent: createApiMethod('saveFileContent'),
         getItemInfo: createApiMethod('getItemInfo'),
-        copyItem: createApiMethod('copyItem'),
-        moveItem: createApiMethod('moveItem'),
+        copyItem: async (sourcePath, destPath) => {
+            // 自定义实现：需要正确构建 { sourcePath, destPath } 请求体
+            if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
+                const connected = await waitForConnection();
+                if (!connected) return { success: false, error: 'Not connected' };
+            }
+            try {
+                const response = await fetch(`${window.apiAdapter._baseUrl}/api/files/copy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sourcePath, destPath })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('[Polyfill] copyItem failed:', error);
+                return { success: false, error: error.message };
+            }
+        },
+        moveItem: async (sourcePath, destPath) => {
+            // 自定义实现：需要正确构建 { sourcePath, destPath } 请求体
+            if (!window.apiAdapter || !window.apiAdapter.isConnected()) {
+                const connected = await waitForConnection();
+                if (!connected) return { success: false, error: 'Not connected' };
+            }
+            try {
+                const response = await fetch(`${window.apiAdapter._baseUrl}/api/files/move`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sourcePath, destPath })
+                });
+                return await response.json();
+            } catch (error) {
+                console.error('[Polyfill] moveItem failed:', error);
+                return { success: false, error: error.message };
+            }
+        },
         openFile: createApiMethod('openFile'),
         showInExplorer: createApiMethod('showInExplorer'),
         

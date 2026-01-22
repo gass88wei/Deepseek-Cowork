@@ -1178,6 +1178,8 @@ class FilesPanel {
   showRenameDialog(item) {
     if (!this.elements.renameDialog) return;
     
+    // 使用专门的变量保存重命名目标，避免被全局点击事件清除
+    this.renameTarget = item;
     this.contextMenuTarget = item;
     
     // 设置当前名称
@@ -1216,13 +1218,16 @@ class FilesPanel {
     if (this.elements.renameDialog) {
       this.elements.renameDialog.style.display = 'none';
     }
+    // 清除重命名目标
+    this.renameTarget = null;
   }
 
   /**
    * 确认重命名
    */
   async confirmRename() {
-    const item = this.contextMenuTarget;
+    // 使用 renameTarget 而不是 contextMenuTarget，因为后者可能被全局点击事件清除
+    const item = this.renameTarget || this.contextMenuTarget;
     const newName = this.elements.renameInput?.value?.trim();
     const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
     
