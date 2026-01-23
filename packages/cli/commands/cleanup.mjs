@@ -6,6 +6,14 @@
  * - PID 文件丢失但进程还在运行
  * - 需要强制清理所有相关进程
  * 
+ * 默认清理：
+ * - daemon 进程和孤儿 session 进程
+ * - daemon.state.json, daemon.lock, daemon.starting.lock
+ * - machineId（从 ~/.happy/settings.json 中删除，确保新 daemon 注册新机器）
+ * 
+ * --all 选项额外清理：
+ * - sessions.json（会话状态文件）
+ * 
  * 创建时间: 2026-01-23
  */
 
@@ -13,7 +21,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { homedir } from 'os';
 import { join } from 'path';
-import { existsSync, unlinkSync, readFileSync } from 'fs';
+import { existsSync, unlinkSync, readFileSync, writeFileSync } from 'fs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { getConfig } from '../index.mjs';
@@ -90,6 +98,23 @@ export async function cleanupCommand(options) {
             filesToClean.push(join(dataDir, 'sessions.json'));
         }
         
+        // 默认清理 ~/.happy/settings.json 中的 machineId（防止新 daemon 复用旧 machineId 导致状态冲突）
+        let machineIdCleared = false;
+        const settingsPath = join(happyHomeDir, 'settings.json');
+        if (existsSync(settingsPath)) {
+            try {
+                const settings = JSON.parse(readFileSync(settingsPath, 'utf8'));
+                if (settings.machineId) {
+                    delete settings.machineId;
+                    delete settings.machineIdConfirmedByServer;
+                    writeFileSync(settingsPath, JSON.stringify(settings, null, 2), 'utf8');
+                    machineIdCleared = true;
+                }
+            } catch (e) {
+                // 忽略解析/写入错误
+            }
+        }
+        
         for (const filePath of filesToClean) {
             if (existsSync(filePath)) {
                 try {
@@ -108,8 +133,11 @@ export async function cleanupCommand(options) {
         console.log(chalk.dim(`    Daemon processes killed:  ${daemonKilled}`));
         console.log(chalk.dim(`    Session processes killed: ${sessionsKilled}`));
         console.log(chalk.dim(`    State files removed:      ${filesRemoved}`));
+        if (machineIdCleared) {
+            console.log(chalk.dim(`    Machine ID cleared:       yes`));
+        }
         
-        if (daemonKilled === 0 && sessionsKilled === 0 && filesRemoved === 0) {
+        if (daemonKilled === 0 && sessionsKilled === 0 && filesRemoved === 0 && !machineIdCleared) {
             console.log('');
             console.log(chalk.cyan('  No cleanup needed - system is clean.'));
         }

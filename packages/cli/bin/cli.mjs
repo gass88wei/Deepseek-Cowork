@@ -101,8 +101,8 @@ program
 
 program
     .command('cleanup')
-    .description('Clean up orphaned daemon and session processes')
-    .option('-a, --all', 'Also clean up session state files')
+    .description('Clean up orphaned daemon/session processes and machineId')
+    .option('-a, --all', 'Also clean up session state files (sessions.json)')
     .option('--debug', 'Show debug information')
     .action(cleanupCommand);
 

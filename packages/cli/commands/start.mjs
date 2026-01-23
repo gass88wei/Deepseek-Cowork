@@ -142,8 +142,8 @@ export async function startCommand(options) {
             const cleanup = async () => {
                 console.log('\n');
                 const stopSpinner = ora('Stopping service...').start();
-                // 停止服务时同时停止 daemon，避免孤儿进程
-                await localService.stop({ stopDaemon: true });
+                // 只停止主服务，不停止 daemon 进程（daemon 由 cleanup 命令清理）
+                await localService.stop({ stopDaemon: false });
                 
                 // 删除 PID 文件
                 const fs = await import('fs');
