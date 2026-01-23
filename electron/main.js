@@ -712,10 +712,10 @@ function setupIpcHandlers() {
     // 热切换到默认目录
     if (happyServiceInitialized) {
       const result = await HappyService.switchWorkDir(defaultDir);
-      return { success: result.success, error: result.error };
+      return { success: result.success, error: result.error, path: defaultDir };
     }
     
-    return { success: true };
+    return { success: true, path: defaultDir };
   });
 
   // ============ 安全存储 IPC 处理器 ============
