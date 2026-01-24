@@ -12,8 +12,9 @@ const { EventEmitter } = require('events');
 /**
  * Setup Memory Service
  * @param {Object} options 配置选项
- * @param {Object} options.memoryManager MemoryManager 实例
- * @param {Object} options.serverConfig 服务器配置
+ * @param {Object} [options.memoryManager] MemoryManager 实例（可选，优先使用）
+ * @param {string} [options.dataDir] 记忆数据目录（可选，用于自动创建 MemoryManager）
+ * @param {Object} [options.serverConfig] 服务器配置
  * @returns {MemoryService} Memory service instance
  */
 function setupMemoryService(options = {}) {
@@ -27,6 +28,7 @@ function setupMemoryService(options = {}) {
     constructor() {
       super();
       this.memoryManager = options.memoryManager || null;
+      this.dataDir = options.dataDir || null;
       this.config = options.serverConfig || {};
       this.isRunning = false;
     }
@@ -47,8 +49,17 @@ function setupMemoryService(options = {}) {
       try {
         console.log('[MemoryService] Initializing...');
         
+        // 如果没有外部注入的 memoryManager，且提供了 dataDir，则自动创建
+        if (!this.memoryManager && this.dataDir) {
+          console.log('[MemoryService] Creating MemoryManager with dataDir:', this.dataDir);
+          const MemoryManager = require('../../../lib/memory-manager');
+          this.memoryManager = new MemoryManager({ dataDir: this.dataDir });
+          await this.memoryManager.initialize();
+          console.log('[MemoryService] MemoryManager created and initialized');
+        }
+        
         if (!this.memoryManager) {
-          console.warn('[MemoryService] MemoryManager not set, some features may not work');
+          console.warn('[MemoryService] MemoryManager not available, some features may not work');
         }
         
         console.log('[MemoryService] Initialized');

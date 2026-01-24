@@ -693,7 +693,8 @@ class ServerManager {
         serverConfig: {
           host: this.config.host,
           port: this.config.port
-        }
+        },
+        dataDir: path.join(app.getPath('userData'), 'memories')
       });
       
       // Initialize
