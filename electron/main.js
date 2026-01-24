@@ -2188,14 +2188,6 @@ function setupHappyServiceEventForwarding() {
     });
   });
   
-  // 当 HappyService 连接成功后，将 MemoryManager 传给 ServerManager
-  HappyService.on('happy:connected', () => {
-    if (serverManager && HappyService.memoryManager) {
-      serverManager.setMemoryManager(HappyService.memoryManager);
-      console.log('MemoryManager connected to ServerManager');
-    }
-  });
-  
   console.log('HappyService event forwarding configured');
 }
 

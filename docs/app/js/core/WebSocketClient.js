@@ -121,8 +121,7 @@ class WebSocketClient {
             'happy:workDirSwitched',
             'happy:initialized',
             'daemon:statusChanged',
-            'daemon:startProgress',
-            'memory:saved'
+            'daemon:startProgress'
         ];
         
         events.forEach(event => {
