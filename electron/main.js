@@ -581,6 +581,11 @@ function setupIpcHandlers() {
     return HappyService.getAllSessions();
   });
 
+  // 获取格式化后的 session 状态（供 SessionHub 使用）
+  ipcMain.handle('happy:getFormattedSessionState', () => {
+    return HappyService.getFormattedSessionState();
+  });
+
   ipcMain.handle('happy:isDaemonRunning', async () => {
     return await HappyService.isDaemonRunning();
   });
@@ -2177,7 +2182,9 @@ function setupHappyServiceEventForwarding() {
     'happy:messagesRestored',
     // daemon 相关事件（由 HappyService 转发）
     'daemon:statusChanged',
-    'daemon:startProgress'
+    'daemon:startProgress',
+    // session 状态更新事件（由 SessionManager 触发，HappyService 转发）
+    'session:stateUpdated'
   ];
   
   happyEvents.forEach(eventName => {

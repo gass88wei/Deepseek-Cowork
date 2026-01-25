@@ -121,7 +121,9 @@ class WebSocketClient {
             'happy:workDirSwitched',
             'happy:initialized',
             'daemon:statusChanged',
-            'daemon:startProgress'
+            'daemon:startProgress',
+            // session 状态更新事件
+            'session:stateUpdated'
         ];
         
         events.forEach(event => {

@@ -36,7 +36,73 @@ class SessionHub {
   init() {
     this.bindElements();
     this.bindEvents();
+    this.subscribeToStateUpdates();
+    this.preloadSessionState();
     console.log('[SessionHub] Initialized');
+  }
+
+  /**
+   * 预加载 session 状态
+   * Electron: 直接调用 IPC 获取（瞬间）
+   * Web: 通过 WebSocket 连接时推送获取，或降级到 HTTP API
+   */
+  async preloadSessionState() {
+    try {
+      if (window.browserControlManager?.getFormattedSessionState) {
+        // Electron 版本：直接调用 IPC 获取
+        console.log('[SessionHub] Preloading state (Electron IPC)...');
+        const state = await window.browserControlManager.getFormattedSessionState();
+        if (state?.sessions) {
+          this.handleStateUpdated(state);
+          this.isStateReady = true;
+          console.log('[SessionHub] State preloaded (Electron):', state.sessions.length, 'sessions');
+        }
+      }
+      // Web 版本：依赖 WebSocket 连接时推送，无需额外操作
+      // 如果 WebSocket 已连接，状态会通过 handleStateUpdated 自动更新
+    } catch (error) {
+      console.warn('[SessionHub] Preload failed:', error.message);
+      // 预加载失败不影响后续操作，用户打开面板时会重新加载
+    }
+  }
+
+  /**
+   * 订阅 session 状态更新事件
+   * 兼容 Electron 和 Web 版本
+   */
+  subscribeToStateUpdates() {
+    // 绑定方法上下文
+    this.handleStateUpdated = this.handleStateUpdated.bind(this);
+    
+    if (window.browserControlManager?.onSessionStateUpdated) {
+      // Electron 版本：通过 IPC 监听
+      this._unsubscribeState = window.browserControlManager.onSessionStateUpdated(this.handleStateUpdated);
+      console.log('[SessionHub] Subscribed to state updates (Electron)');
+    } else if (window.apiAdapter?.on) {
+      // Web 版本：通过 WebSocket 监听
+      window.apiAdapter.on('session:stateUpdated', this.handleStateUpdated);
+      console.log('[SessionHub] Subscribed to state updates (Web)');
+    }
+  }
+
+  /**
+   * 处理实时状态更新
+   * @param {Object} state 状态数据 { currentSession, sessions, updatedAt }
+   */
+  handleStateUpdated(state) {
+    if (!state?.sessions) return;
+    
+    console.log('[SessionHub] State updated:', state.sessions.length, 'sessions');
+    
+    // 更新内部状态
+    this.sessions = state.sessions;
+    this.currentSessionId = state.currentSession;
+    this.isStateReady = true;
+    
+    // 如果面板可见，立即刷新 UI
+    if (this.isVisible) {
+      this.renderSessionList();
+    }
   }
 
   /**
@@ -102,8 +168,15 @@ class SessionHub {
     this.elements.panel.classList.remove('closing');
     this.elements.toggleBtn?.classList.add('active');
     
-    // 加载 session 列表
-    await this.loadSessions();
+    // 优先使用缓存数据（瞬间显示）
+    if (this.isStateReady && this.sessions.length > 0) {
+      console.log('[SessionHub] Using cached state, rendering immediately');
+      this.renderSessionList();
+    } else {
+      // 缓存为空，通过 API 加载（降级方案）
+      console.log('[SessionHub] No cached state, loading via API');
+      await this.loadSessions();
+    }
   }
 
   /**
@@ -127,6 +200,7 @@ class SessionHub {
 
   /**
    * 加载 session 列表
+   * 首次加载或手动刷新时调用，通过 HTTP API 获取数据
    */
   async loadSessions() {
     if (this.isLoading) return;
@@ -135,18 +209,41 @@ class SessionHub {
     this.renderLoading();
     
     try {
-      // 获取所有 sessions
-      const sessions = await window.browserControlManager?.getAllSessions?.();
+      // 获取所有 sessions（API 返回 { success, sessions: { name: {...} } }）
+      const response = await window.browserControlManager?.getAllSessions?.();
       
-      if (sessions && Array.isArray(sessions)) {
+      // 处理响应数据
+      let sessions = [];
+      let currentSession = null;
+      
+      if (response) {
+        // 如果已经是数组格式（实时更新推送的格式）
+        if (Array.isArray(response)) {
+          sessions = response;
+        } 
+        // 如果是 API 响应格式 { success, sessions: {...} }
+        else if (response.sessions) {
+          const sessionsObj = response.sessions;
+          currentSession = response.currentSession;
+          
+          // 转换对象为数组格式
+          sessions = Object.entries(sessionsObj).map(([name, session]) => ({
+            name,
+            sessionId: session.sessionId,
+            workspaceDir: session.workDir,
+            status: this.mapStatus(session.status),
+            createdAt: session.createdAt,
+            pid: session.pid,
+            isCurrent: name === currentSession
+          }));
+        }
+      }
+      
+      if (sessions.length > 0) {
         this.sessions = sessions;
-        
-        // 获取当前 session ID
-        this.currentSessionId = this.app?.currentSessionId || null;
-        
+        this.currentSessionId = currentSession || this.app?.currentSessionId || null;
         this.renderSessionList();
       } else {
-        // 无数据或 API 不支持
         this.sessions = [];
         this.renderEmpty();
       }
@@ -157,6 +254,21 @@ class SessionHub {
     } finally {
       this.isLoading = false;
     }
+  }
+
+  /**
+   * 映射 session 状态为前端友好的状态值
+   * @param {string} status 原始状态
+   * @returns {string} 映射后的状态
+   */
+  mapStatus(status) {
+    const statusMap = {
+      'active': 'idle',
+      'processing': 'processing',
+      'connected': 'connected',
+      'disconnected': 'disconnected'
+    };
+    return statusMap[status] || status || 'idle';
   }
 
   /**
@@ -244,8 +356,12 @@ class SessionHub {
    * @returns {string} HTML 字符串
    */
   renderSessionCard(session, t) {
-    const isCurrent = session.sessionId === this.currentSessionId || 
-                      session.workspaceDir === this.app?.workspaceSettings?.getWorkspaceDir?.();
+    // 优先使用后端提供的 isCurrent 字段（权威数据）
+    // 只有当 isCurrent 未定义时才使用本地判断（兼容旧数据/API 加载场景）
+    const isCurrent = session.isCurrent !== undefined 
+        ? session.isCurrent 
+        : (session.name === this.currentSessionId || 
+           session.workspaceDir === this.app?.workspaceSettings?.getWorkspaceDir?.());
     const statusClass = this.getStatusClass(session.status);
     const statusText = t(`sessionHub.status.${session.status}`) || session.status || 'idle';
     
@@ -490,6 +606,13 @@ class SessionHub {
    */
   destroy() {
     document.removeEventListener('keydown', this.handleKeyDown);
+    
+    // 取消订阅状态更新事件
+    if (this._unsubscribeState) {
+      this._unsubscribeState();
+      this._unsubscribeState = null;
+    }
+    
     this.elements = {};
     this.sessions = [];
   }

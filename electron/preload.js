@@ -958,6 +958,24 @@ contextBridge.exposeInMainWorld('browserControlManager', {
     return () => ipcRenderer.removeListener('happy:initialized', handler);
   },
 
+  /**
+   * 监听 Session 状态更新事件
+   * 当 session 列表发生变化（创建/切换/删除）时触发
+   * @param {Function} callback - 回调函数 (state: { currentSession, sessions, updatedAt })
+   * @returns {Function} 取消监听函数
+   */
+  onSessionStateUpdated: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('session:stateUpdated', handler);
+    return () => ipcRenderer.removeListener('session:stateUpdated', handler);
+  },
+
+  /**
+   * 获取格式化后的 Session 状态（供 SessionHub 预加载使用）
+   * @returns {Promise<Object>} { currentSession, sessions: [], updatedAt }
+   */
+  getFormattedSessionState: () => ipcRenderer.invoke('happy:getFormattedSessionState'),
+
   // ============ 窗口控制 ============
   
   /**
