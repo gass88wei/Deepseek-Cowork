@@ -190,6 +190,17 @@
       <main id="display-panel">
         <!-- Browser panel -->
         <div id="panel-browser" class="panel">
+          <!-- 移动版顶部导航栏 -->
+          <div class="display-panel-header" id="browser-panel-header">
+            <div class="display-header-left">
+              <h3 class="display-header-title" data-i18n="sidebar.browser">Browser</h3>
+            </div>
+            <div class="display-header-right">
+              <button class="display-header-btn mobile-drawer-toggle" data-drawer="browser" data-i18n-title="browser.toggleMenu" title="Toggle Menu">
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 3v6"/></svg>
+              </button>
+            </div>
+          </div>
           <div class="panel-content browser-panel-no-header" id="browser-panel-content">
             <!-- 分栏容器（row-reverse：展示区在左，菜单栏在右） -->
             <div id="browser-split-container" class="browser-split-container">
@@ -241,6 +252,17 @@
         
         <!-- File panel -->
         <div id="panel-files" class="panel active">
+          <!-- 移动版顶部导航栏 -->
+          <div class="display-panel-header" id="files-panel-header">
+            <div class="display-header-left">
+              <h3 class="display-header-title" data-i18n="sidebar.files">Files</h3>
+            </div>
+            <div class="display-header-right">
+              <button class="display-header-btn mobile-drawer-toggle" data-drawer="files" data-i18n-title="files.toggleList" title="Toggle File List">
+                <svg viewBox="0 0 24 24"><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>
+              </button>
+            </div>
+          </div>
           <div class="panel-content files-panel-no-header" id="files-panel-content">
             <!-- 分栏容器（row-reverse：预览区在左，文件列表在右） -->
             <div id="files-split-container" class="files-split-container">
@@ -568,7 +590,19 @@
         
         <!-- Settings panel -->
         <div id="panel-settings" class="panel">
-          <div class="panel-header">
+          <!-- 移动版顶部导航栏（设置面板使用左侧抽屉） -->
+          <div class="display-panel-header" id="settings-panel-header">
+            <div class="display-header-left">
+              <button class="display-header-btn mobile-drawer-toggle" data-drawer="settings" data-drawer-side="left" data-i18n-title="settings.toggleNav" title="Toggle Navigation">
+                <svg viewBox="0 0 24 24"><path d="M3 12h18"/><path d="M3 6h18"/><path d="M3 18h18"/></svg>
+              </button>
+              <h3 class="display-header-title" data-i18n="settings.title">Settings</h3>
+            </div>
+            <div class="display-header-right">
+              <!-- 设置面板右侧不需要按钮 -->
+            </div>
+          </div>
+          <div class="panel-header settings-desktop-header">
             <h2 data-i18n="settings.title">Settings</h2>
           </div>
           <div class="panel-content settings-split-layout">
@@ -1340,6 +1374,9 @@
   
   <!-- Features - SessionHub -->
   <script src="js/features/session-hub/SessionHub.js"></script>
+  
+  <!-- Features - MobileDrawer -->
+  <script src="js/features/mobile-drawer/MobileDrawer.js"></script>
   
   <!-- Features - BrowserControl -->
   <script src="js/features/browser/services/ExtensionService.js"></script>

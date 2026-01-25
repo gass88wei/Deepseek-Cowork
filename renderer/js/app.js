@@ -92,6 +92,9 @@ class BrowserControlManagerApp {
     // SessionHub 实例
     this.sessionHub = new SessionHub({ app: this });
     
+    // MobileDrawer 实例（移动版侧边栏抽屉）
+    this.mobileDrawer = null; // 延迟初始化，在 init() 中创建
+    
     // BrowserPanel 实例
     this.browserPanel = new BrowserPanel(this);
     
@@ -368,6 +371,18 @@ class BrowserControlManagerApp {
     
     // 初始化 SessionHub
     this.sessionHub.init();
+    
+    // 初始化 MobileDrawer（移动版侧边栏抽屉）
+    if (typeof MobileDrawer !== 'undefined') {
+      this.mobileDrawer = new MobileDrawer({ app: this });
+      window.mobileDrawer = this.mobileDrawer; // 挂载到全局供 switchPanel 使用
+    }
+    
+    // 初始化移动版面板状态
+    if (this.isMobileView()) {
+      // 默认显示对话面板
+      this.updateMobilePanelVisibility(true);
+    }
     
     // 初始化 BrowserControlModule（服务器状态、扩展连接管理）
     await this.browserControlModule.init();
@@ -774,6 +789,13 @@ class BrowserControlManagerApp {
     // 监听主题变化事件（系统主题变化时更新提示）
     window.addEventListener('themechange', (e) => {
       this.updateThemeHint(themeHint, e.detail.mode);
+    });
+
+    // 监听窗口尺寸变化（移动版/桌面版切换）
+    let resizeTimeout;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimeout);
+      resizeTimeout = setTimeout(() => this.handleResize(), 100);
     });
 
     // Language selector event
@@ -1234,32 +1256,114 @@ class BrowserControlManagerApp {
   // ============ 面板导航 ============
 
   /**
+   * 检测当前是否为移动视图
+   * @returns {boolean}
+   */
+  isMobileView() {
+    return window.innerWidth < 900;
+  }
+
+  /**
    * 切换展示栏面板
    */
   switchPanel(panelId) {
-    if (panelId === 'chat') {
-      // 对话模式
-      if (this.currentPanel === 'chat' && this.displayPanelExpanded) {
-        // 已在对话模式且展示区展开，则折叠
-        this.displayPanelExpanded = false;
-        this.setDisplayPanelVisible(false);
-      } else if (this.currentPanel !== 'chat') {
-        // 从其他模式切换到对话模式
-        this.currentPanel = 'chat';
-        this.displayPanelExpanded = false;
-        this.setDisplayPanelVisible(false);
-      }
-      // 如果已在对话模式且展示区折叠，保持不变
-    } else {
-      // 其他模式：显示展示区
+    // 移动版：对话面板和展示面板互斥全屏显示
+    if (this.isMobileView()) {
       this.currentPanel = panelId;
-      this.activeDisplayContent = panelId;
-      this.displayPanelExpanded = true;
-      this.setDisplayPanelVisible(true);
-      this.showDisplayPanel(panelId);
+      
+      if (panelId === 'chat') {
+        // 显示对话面板，隐藏展示面板
+        this.updateMobilePanelVisibility(true);
+      } else {
+        // 隐藏对话面板，显示展示面板
+        this.activeDisplayContent = panelId;
+        this.updateMobilePanelVisibility(false);
+        this.showDisplayPanel(panelId);
+      }
+      
+      // 关闭可能打开的抽屉
+      if (window.mobileDrawer) {
+        window.mobileDrawer.hide();
+      }
+    } else {
+      // 桌面版：原有逻辑
+      if (panelId === 'chat') {
+        // 对话模式
+        if (this.currentPanel === 'chat' && this.displayPanelExpanded) {
+          // 已在对话模式且展示区展开，则折叠
+          this.displayPanelExpanded = false;
+          this.setDisplayPanelVisible(false);
+        } else if (this.currentPanel !== 'chat') {
+          // 从其他模式切换到对话模式
+          this.currentPanel = 'chat';
+          this.displayPanelExpanded = false;
+          this.setDisplayPanelVisible(false);
+        }
+        // 如果已在对话模式且展示区折叠，保持不变
+      } else {
+        // 其他模式：显示展示区
+        this.currentPanel = panelId;
+        this.activeDisplayContent = panelId;
+        this.displayPanelExpanded = true;
+        this.setDisplayPanelVisible(true);
+        this.showDisplayPanel(panelId);
+      }
     }
     
     this.updateNavButtons();
+  }
+
+  /**
+   * 更新移动版面板可见性
+   * @param {boolean} showChat - 是否显示对话面板
+   */
+  updateMobilePanelVisibility(showChat) {
+    const chatPanel = document.getElementById('chat-panel');
+    const displayPanel = document.getElementById('display-panel');
+    
+    if (showChat) {
+      chatPanel?.classList.remove('mobile-panel-hidden');
+      displayPanel?.classList.remove('mobile-panel-visible');
+    } else {
+      chatPanel?.classList.add('mobile-panel-hidden');
+      displayPanel?.classList.add('mobile-panel-visible');
+    }
+  }
+
+  /**
+   * 处理窗口尺寸变化（桌面/移动模式切换）
+   */
+  handleResize() {
+    const isMobile = this.isMobileView();
+    const chatPanel = document.getElementById('chat-panel');
+    const displayPanel = document.getElementById('display-panel');
+    
+    if (isMobile) {
+      // 切换到移动模式
+      if (this.currentPanel === 'chat') {
+        chatPanel?.classList.remove('mobile-panel-hidden');
+        displayPanel?.classList.remove('mobile-panel-visible');
+      } else {
+        chatPanel?.classList.add('mobile-panel-hidden');
+        displayPanel?.classList.add('mobile-panel-visible');
+      }
+      
+      // 关闭抽屉
+      if (window.mobileDrawer) {
+        window.mobileDrawer.hide();
+      }
+    } else {
+      // 切换到桌面模式，清除移动版样式类
+      chatPanel?.classList.remove('mobile-panel-hidden');
+      displayPanel?.classList.remove('mobile-panel-visible');
+      
+      // 恢复桌面版的展示区状态
+      if (this.displayPanelExpanded) {
+        this.setDisplayPanelVisible(true);
+      } else {
+        this.setDisplayPanelVisible(false);
+      }
+    }
   }
   
   /**

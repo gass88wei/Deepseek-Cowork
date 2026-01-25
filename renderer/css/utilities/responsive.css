@@ -2,7 +2,7 @@
  * Responsive Layout - 响应式布局
  * 断点：900px
  * - >= 900px: 完整模式（左侧导航 + 对话栏 + 展示栏）
- * - < 900px: 紧凑模式（底部导航 + 对话栏自适应宽度）
+ * - < 900px: 紧凑模式（底部导航 + 全屏面板切换）
  * 最小宽度：480px
  */
 
@@ -130,18 +130,43 @@
     }
   }
   
-  /* 隐藏展示栏 */
-  #display-panel {
-    display: none !important;
-  }
+  /* ===== 移动版面板状态控制 ===== */
+  /* 对话面板和展示面板互斥显示 */
   
-  /* 对话栏自适应宽度，添加底部内边距避免被导航遮挡 */
   #chat-panel {
     width: 100%;
     min-width: 0;
     flex: 1;
     border-right: none;
     padding-bottom: var(--bottom-nav-height, 64px);
+    /* 默认显示 */
+    display: flex;
+  }
+  
+  #display-panel {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: var(--bottom-nav-height, 64px);
+    width: 100%;
+    /* 默认隐藏 */
+    display: none;
+    z-index: 50;
+  }
+  
+  /* 移动版面板可见状态 */
+  #chat-panel.mobile-panel-hidden {
+    display: none !important;
+  }
+  
+  #display-panel.mobile-panel-visible {
+    display: flex !important;
+  }
+  
+  /* 移动版面板顶部导航栏（桌面版隐藏） */
+  .display-panel-header {
+    display: flex !important;
   }
   
   /* 徽标样式（预留功能） */
@@ -164,6 +189,56 @@
   
   #sidebar .nav-btn .badge.show {
     display: block;
+  }
+  
+  
+  /* ===== 移动版面板内容区调整 ===== */
+  
+  /* 文件面板 - 移动版下隐藏文件列表侧边栏 */
+  #files-split-container {
+    flex-direction: column;
+  }
+  
+  #files-list-pane {
+    display: none;
+  }
+  
+  #file-preview-pane {
+    width: 100%;
+  }
+  
+  #files-resizer {
+    display: none;
+  }
+  
+  /* 浏览器面板 - 移动版下隐藏菜单侧边栏 */
+  #browser-split-container {
+    flex-direction: column;
+  }
+  
+  #browser-menu-pane {
+    display: none;
+  }
+  
+  #browser-display-pane {
+    width: 100%;
+  }
+  
+  #browser-resizer {
+    display: none;
+  }
+  
+  /* 设置面板 - 移动版下隐藏导航侧边栏 */
+  .settings-split-layout {
+    flex-direction: column;
+  }
+  
+  .settings-nav {
+    display: none;
+  }
+  
+  .settings-content {
+    width: 100%;
   }
 }
 
@@ -196,5 +271,160 @@
   
   body:not(.dark) #sidebar .nav-btn.active::before {
     background: var(--primary);
+  }
+  
+  /* 浅色主题 - 展示面板顶部导航栏 */
+  body:not(.dark) .display-panel-header {
+    background: rgba(255, 255, 255, 0.8);
+    border-bottom-color: var(--border);
+  }
+  
+  body:not(.dark) .display-header-btn {
+    color: var(--muted-foreground);
+  }
+  
+  body:not(.dark) .display-header-btn:hover {
+    background: var(--glass-bg-hover);
+    color: var(--foreground);
+  }
+  
+  /* 浅色主题 - 抽屉 */
+  body:not(.dark) .mobile-drawer {
+    background: rgba(255, 255, 255, 0.98);
+  }
+  
+  body:not(.dark) .mobile-drawer-header {
+    border-bottom-color: var(--border);
+  }
+  
+  body:not(.dark) .mobile-drawer-header h3 {
+    color: var(--foreground);
+  }
+  
+  body:not(.dark) .mobile-drawer-close {
+    color: var(--muted-foreground);
+  }
+  
+  body:not(.dark) .mobile-drawer-close:hover {
+    background: var(--glass-bg-hover);
+    color: var(--foreground);
+  }
+}
+
+/* ===== 移动版抽屉样式（全局） ===== */
+/* 抽屉元素由 JS 动态创建，默认隐藏 */
+
+/* 抽屉遮罩层 - 默认隐藏 */
+.mobile-drawer-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.mobile-drawer-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+/* 抽屉容器 - 默认移出屏幕 */
+.mobile-drawer {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  width: 85%;
+  max-width: 320px;
+  background: var(--glass-bg, rgba(23, 23, 23, 0.98));
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  z-index: 210;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
+  transition: transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* 右侧抽屉（默认） */
+.mobile-drawer.drawer-right {
+  right: 0;
+  border-left: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  transform: translateX(100%);
+}
+
+.mobile-drawer.drawer-right.open {
+  transform: translateX(0);
+}
+
+/* 左侧抽屉（设置面板） */
+.mobile-drawer.drawer-left {
+  left: 0;
+  border-right: 1px solid var(--glass-border, rgba(255, 255, 255, 0.1));
+  transform: translateX(-100%);
+}
+
+.mobile-drawer.drawer-left.open {
+  transform: translateX(0);
+}
+
+/* 抽屉头部 */
+.mobile-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  flex-shrink: 0;
+}
+
+.mobile-drawer-header h3,
+.mobile-drawer-title {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--foreground);
+  margin: 0;
+}
+
+.mobile-drawer-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius, 6px);
+  background: transparent;
+  color: var(--muted-foreground);
+  font-size: 1.25rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mobile-drawer-close:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--foreground);
+}
+
+/* 抽屉内容区 */
+.mobile-drawer-content {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* 移动端抽屉适配底部导航栏 */
+@media (max-width: 899px) {
+  .mobile-drawer-overlay {
+    bottom: var(--bottom-nav-height, 64px);
+  }
+  
+  .mobile-drawer {
+    bottom: var(--bottom-nav-height, 64px);
   }
 }
