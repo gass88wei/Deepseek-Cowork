@@ -703,10 +703,10 @@ pre:hover .code-copy-btn {
   opacity: 0.8;
 }
 
-/* ===== 聊天面板 Three.js 动态背景独立层 ===== */
+/* ===== 对话首页独立层 ===== */
 /* 作为 AI 对话首页，遮蔽消息层和输入层 */
 
-.chat-threejs-bg {
+.chat-home {
   position: absolute;
   top: 0;
   left: 0;
@@ -720,12 +720,12 @@ pre:hover .code-copy-btn {
   pointer-events: none;
 }
 
-.chat-threejs-bg.visible {
+.chat-home.visible {
   opacity: 1;
   pointer-events: auto; /* 可见时允许交互 */
 }
 
-.chat-threejs-bg canvas {
+.chat-home canvas {
   position: absolute;
   top: 0;
   left: 0;
@@ -765,6 +765,17 @@ pre:hover .code-copy-btn {
   margin-bottom: 2rem;
 }
 
+.chat-home-welcome {
+  font-size: 2rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #ffffff 0%, #b0b0b0 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0 0 0.5rem 0;
+  letter-spacing: 0.02em;
+}
+
 .chat-home-title {
   font-size: 1.5rem;
   font-weight: 600;
@@ -774,6 +785,27 @@ pre:hover .code-copy-btn {
   background-clip: text;
   text-shadow: 0 0 40px rgba(255, 255, 255, 0.2);
   margin: 0;
+  min-height: 1.8em; /* 防止打字时高度跳动 */
+}
+
+/* 打字机光标效果 */
+.chat-home-title .typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.2em;
+  background: linear-gradient(135deg, #ffffff 0%, #a3a3a3 100%);
+  margin-left: 2px;
+  vertical-align: text-bottom;
+  animation: typewriter-blink 0.8s ease-in-out infinite;
+}
+
+@keyframes typewriter-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
 }
 
 /* 首页输入框容器 */
@@ -869,6 +901,10 @@ pre:hover .code-copy-btn {
   .chat-home-content {
     padding: 1.5rem 1rem;
     max-width: 100%;
+  }
+  
+  .chat-home-welcome {
+    font-size: 1.5rem;
   }
   
   .chat-home-title {

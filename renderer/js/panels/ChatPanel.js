@@ -49,6 +49,11 @@ class ChatPanel {
     // 是否处于对话模式（只有对话模式下才显示独立层）
     this.isChatMode = false;
     
+    // 打字机效果相关
+    this.typewriterTimer = null;
+    this.typewriterText = '';  // 原始文本（从 i18n 获取）
+    this.typewriterPlayed = false;  // 是否已播放过打字机效果
+    
     // DOM 元素
     this.elements = {};
   }
@@ -75,8 +80,8 @@ class ChatPanel {
     // 如果只有欢迎消息或没有消息，准备显示背景
     if (!hasMessages && hasWelcome) {
       // 背景容器存在但先不添加 visible 类，等面板激活时再添加
-      if (this.elements.chatThreejsBg) {
-        this.elements.chatThreejsBg.style.display = 'block';
+      if (this.elements.chatHome) {
+        this.elements.chatHome.style.display = 'block';
       }
     }
   }
@@ -105,7 +110,7 @@ class ChatPanel {
     }
     
     // 更新尺寸并启动动画（如果背景可见）
-    if (this.chatBackground && this.elements.chatThreejsBg?.classList.contains('visible')) {
+    if (this.chatBackground && this.elements.chatHome?.classList.contains('visible')) {
       this.chatBackground.onResize();
       this.chatBackground.start();
     }
@@ -126,9 +131,9 @@ class ChatPanel {
    * 初始化 Three.js 背景
    */
   initChatBackground() {
-    const container = this.elements.chatThreejsBg;
+    const container = this.elements.chatHome;
     if (!container) {
-      console.warn('[ChatPanel] Chat background container not found');
+      console.warn('[ChatPanel] Chat home container not found');
       return;
     }
     
@@ -142,7 +147,7 @@ class ChatPanel {
   }
 
   /**
-   * 显示聊天背景（只在对话模式下有效）
+   * 显示对话首页（只在对话模式下有效）
    */
   showChatBackground() {
     // 只在对话模式下显示独立层
@@ -150,28 +155,107 @@ class ChatPanel {
       return;
     }
     
-    if (this.elements.chatThreejsBg) {
-      this.elements.chatThreejsBg.classList.add('visible');
+    if (this.elements.chatHome) {
+      this.elements.chatHome.classList.add('visible');
       
       // 如果背景已初始化，启动动画
       if (this.chatBackground) {
         this.chatBackground.onResize();
         this.chatBackground.start();
       }
+      
+      // 启动打字机效果（每次显示都播放）
+      this.startTypewriter();
     }
   }
 
   /**
-   * 隐藏聊天背景
+   * 隐藏对话首页
    */
   hideChatBackground() {
-    if (this.elements.chatThreejsBg) {
-      this.elements.chatThreejsBg.classList.remove('visible');
+    if (this.elements.chatHome) {
+      this.elements.chatHome.classList.remove('visible');
       
       // 停止动画以节省资源
       if (this.chatBackground) {
         this.chatBackground.stop();
       }
+      
+      // 停止打字机效果
+      this.stopTypewriter();
+    }
+  }
+
+  /**
+   * 启动打字机效果
+   */
+  startTypewriter() {
+    const titleEl = this.elements.chatHomeTitle;
+    if (!titleEl) return;
+    
+    // 停止之前的打字机效果
+    this.stopTypewriter();
+    
+    // 获取原始文本（从 i18n key 获取或使用默认文本）
+    if (!this.typewriterText) {
+      // 尝试从 i18n 获取文本
+      const i18nKey = titleEl.getAttribute('data-i18n');
+      if (i18nKey && window.i18n?.t) {
+        this.typewriterText = window.i18n.t(i18nKey);
+      } else {
+        // 使用默认文本
+        this.typewriterText = titleEl.textContent || 'What can I help you with?';
+      }
+    }
+    
+    // 清空标题并添加光标
+    titleEl.innerHTML = '<span class="typewriter-cursor"></span>';
+    
+    // 逐字显示
+    let charIndex = 0;
+    const text = this.typewriterText;
+    const speed = 60; // 每个字符的打字速度（毫秒）
+    
+    const type = () => {
+      if (charIndex < text.length) {
+        // 获取光标元素
+        const cursor = titleEl.querySelector('.typewriter-cursor');
+        // 在光标前插入字符
+        if (cursor) {
+          cursor.insertAdjacentText('beforebegin', text.charAt(charIndex));
+        } else {
+          titleEl.textContent += text.charAt(charIndex);
+        }
+        charIndex++;
+        this.typewriterTimer = setTimeout(type, speed);
+      } else {
+        // 打字完成，保留光标继续闪烁
+        this.typewriterPlayed = true;
+      }
+    };
+    
+    // 延迟开始打字，让背景动画先出现
+    this.typewriterTimer = setTimeout(type, 300);
+  }
+
+  /**
+   * 停止打字机效果
+   */
+  stopTypewriter() {
+    if (this.typewriterTimer) {
+      clearTimeout(this.typewriterTimer);
+      this.typewriterTimer = null;
+    }
+  }
+
+  /**
+   * 重置打字机效果（重新显示首页时调用）
+   */
+  resetTypewriter() {
+    this.typewriterPlayed = false;
+    const titleEl = this.elements.chatHomeTitle;
+    if (titleEl && this.typewriterText) {
+      titleEl.textContent = this.typewriterText;
     }
   }
 
@@ -234,9 +318,10 @@ class ChatPanel {
       agentStatusItem: document.getElementById('agent-status'),
       happyEventDot: document.getElementById('happy-event-dot'),
       happyEventText: document.getElementById('happy-event-text'),
-      // Three.js 背景独立层
-      chatThreejsBg: document.getElementById('chat-threejs-bg'),
+      // 对话首页独立层
+      chatHome: document.getElementById('chat-home'),
       // 对话首页元素
+      chatHomeTitle: document.querySelector('.chat-home-title'),
       chatHomeInput: document.getElementById('chat-home-input'),
       chatHomeSendBtn: document.getElementById('chat-home-send-btn')
     };

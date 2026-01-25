@@ -108,6 +108,7 @@
       abort: 'Abort (Esc)',
       welcomeTitle: 'Welcome to DeepSeek Cowork',
       welcomeDesc: 'After connecting, you can chat with DeepSeek Cowork to perform tasks',
+      homeWelcome: 'Welcome to DeepSeek Cowork',
       homeTitle: 'What can I help you with?',
       homeInputPlaceholder: 'Describe what you want to do...',
       contextInput: 'Input:',
