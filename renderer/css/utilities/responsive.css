@@ -228,6 +228,19 @@
     display: none;
   }
   
+  /* 浏览器面板 - 移动版标签卡片样式 */
+  /* 保持双列时的卡片宽度，单列居中显示 */
+  .tabs-grid {
+    grid-template-columns: 1fr !important;
+    justify-items: center;
+    padding: 1rem;
+  }
+  
+  .tabs-grid .glass-card {
+    width: 100%;
+    max-width: 340px;
+  }
+  
   /* 设置面板 - 移动版下隐藏导航侧边栏 */
   .settings-split-layout {
     flex-direction: column;
@@ -427,4 +440,108 @@
   .mobile-drawer {
     bottom: var(--bottom-nav-height, 64px);
   }
+}
+
+/* 抽屉内克隆内容的强制显示样式 */
+.mobile-drawer-cloned-content {
+  display: flex !important;
+  flex-direction: column !important;
+}
+
+/* 抽屉内设置面板导航项样式 */
+.mobile-drawer-content .settings-nav-item {
+  display: flex !important;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  cursor: pointer;
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: all var(--transition-fast, 150ms) ease;
+  margin-bottom: 0.25rem;
+  /* 保持自然高度，不撑满 */
+  flex: 0 0 auto !important;
+  width: 100% !important;
+}
+
+/* 强制显示抽屉内设置导航项的文字（覆盖 panel.css 中 768px 媒体查询的隐藏规则） */
+.mobile-drawer-content .settings-nav-item span:not(.nav-icon) {
+  display: inline !important;
+}
+
+.mobile-drawer-content .settings-nav-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--foreground);
+}
+
+.mobile-drawer-content .settings-nav-item.active {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.mobile-drawer-content .settings-nav-item .nav-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  flex-shrink: 0;
+}
+
+.mobile-drawer-content .settings-nav-item .nav-icon svg {
+  width: 1rem;
+  height: 1rem;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+/* 抽屉内文件列表面板样式 */
+.mobile-drawer-content .files-list-pane,
+.mobile-drawer-content .breadcrumb {
+  display: block !important;
+}
+
+.mobile-drawer-content #files-container {
+  flex: 1;
+  overflow-y: auto;
+}
+
+/* 抽屉内浏览器菜单样式 */
+.mobile-drawer-content .browser-menu-pane {
+  display: flex !important;
+  flex-direction: column;
+}
+
+.mobile-drawer-content .browser-menu-header {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.mobile-drawer-content .browser-menu-list {
+  flex: 1;
+  display: flex !important;
+  flex-direction: column !important;
+  flex-wrap: nowrap !important;
+  overflow-y: auto;
+  overflow-x: hidden !important;
+  padding: 0.5rem;
+}
+
+/* 抽屉内浏览器菜单项样式（覆盖 768px 媒体查询） */
+.mobile-drawer-content .browser-menu-item {
+  display: flex !important;
+  width: 100% !important;
+  flex: 0 0 auto !important;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.25rem;
+}
+
+/* 强制显示抽屉内浏览器菜单项的文字 */
+.mobile-drawer-content .browser-menu-item .menu-label {
+  display: block !important;
 }

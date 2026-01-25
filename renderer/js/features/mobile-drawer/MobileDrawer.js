@@ -27,7 +27,7 @@ class MobileDrawer {
       },
       settings: {
         title: 'settings.title',
-        side: 'left',
+        side: 'right',
         contentSelector: '.settings-nav',
         icon: '<svg viewBox="0 0 24 24"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg>'
       }
@@ -219,14 +219,15 @@ class MobileDrawer {
     
     // 克隆内容
     const clone = sourceEl.cloneNode(true);
-    clone.style.display = '';
-    clone.style.width = '100%';
-    clone.style.height = '100%';
-    clone.style.border = 'none';
-    clone.style.background = 'transparent';
     
     // 移除 ID 避免重复（保留原始元素用于桌面版）
     clone.removeAttribute('id');
+    
+    // 添加抽屉内容类，用于覆盖移动端的隐藏样式
+    clone.classList.add('mobile-drawer-cloned-content');
+    
+    // 设置内联样式确保显示（使用 cssText 来覆盖 CSS 规则）
+    clone.style.cssText = 'display: flex !important; flex-direction: column; width: 100%; height: 100%; border: none; background: transparent; overflow-y: auto;';
     
     // 清空并添加内容
     this.elements.content.innerHTML = '';
