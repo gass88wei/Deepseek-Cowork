@@ -154,7 +154,12 @@
       // Help commands
       availableCommands: 'Available commands:',
       noDescription: 'No description',
-      unknownCommand: 'Unknown command:'
+      unknownCommand: 'Unknown command:',
+      // Session files
+      sessionFiles: 'Session Files',
+      noSessionFiles: 'No files yet',
+      // Showcase
+      toggleShowcase: 'Toggle Showcase'
     },
     
     // Browser panel
@@ -617,7 +622,13 @@
       copy: 'Copy',
       copied: 'Copied!',
       copyCode: 'Copy code',
-      copyMessage: 'Copy message'
+      copyMessage: 'Copy message',
+      
+      // File reference
+      fileRead: 'Read',
+      fileEdited: 'Edited',
+      fileCreated: 'Created',
+      openFile: 'Open'
     },
     
     // Error messages

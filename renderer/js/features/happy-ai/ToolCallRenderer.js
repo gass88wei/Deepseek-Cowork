@@ -195,6 +195,9 @@ class ToolCallRenderer {
       <div class="tool-content ${!noStatus && tool.state === 'running' ? 'collapsed' : ''}">
         ${toolContentHtml}
       </div>
+      <div class="tool-file-refs" id="file-refs-${toolId}">
+        ${this.renderFileReference(tool)}
+      </div>
       <div class="tool-footer" id="perm-${toolId}">
         ${this.renderPermissionFooter(tool)}
       </div>
@@ -223,6 +226,16 @@ class ToolCallRenderer {
     
     // 绑定权限按钮事件
     this.bindPermissionButtons(toolCard, tool);
+    
+    // 绑定文件标签事件（如果工具已完成）
+    if (tool.state === 'completed') {
+      const fileRefsEl = toolCard.querySelector('.tool-file-refs');
+      if (fileRefsEl) {
+        this.bindFileTagEvents(fileRefsEl);
+      }
+      // 追踪会话文件（从历史加载时也需要追踪）
+      this.trackSessionFile(tool, tool.name);
+    }
   }
   
   /**
@@ -273,6 +286,20 @@ class ToolCallRenderer {
         }
         contentEl.classList.remove('collapsed');
       }
+    }
+    
+    // 更新文件引用区域（仅在完成时）
+    if (tool.state === 'completed') {
+      const fileRefsEl = toolCard.querySelector('.tool-file-refs');
+      if (fileRefsEl) {
+        // 使用原始工具名来检查是否是文件操作工具
+        const fileRefHtml = this.renderFileReference({ ...tool, name: originalToolName });
+        fileRefsEl.innerHTML = fileRefHtml;
+        this.bindFileTagEvents(fileRefsEl);
+      }
+      
+      // 追踪会话文件（添加到侧边栏）
+      this.trackSessionFile(tool, originalToolName);
     }
     
     // 更新权限区域
@@ -597,6 +624,132 @@ class ToolCallRenderer {
     Object.keys(this.toolTimers).forEach(toolId => {
       this.stopToolTimer(toolId);
     });
+  }
+  
+  /**
+   * 渲染文件引用标签
+   * 当文件操作工具完成时，显示可点击的文件标签
+   * @param {Object} tool 工具数据
+   * @returns {string} HTML 内容
+   */
+  renderFileReference(tool) {
+    // 只有文件操作工具才显示文件引用
+    const fileTools = ['Read', 'Edit', 'MultiEdit', 'Write', 'StrReplace'];
+    if (!fileTools.includes(tool.name)) {
+      return '';
+    }
+    
+    // 只有完成状态才显示
+    if (tool.state !== 'completed') {
+      return '';
+    }
+    
+    // 获取文件路径
+    const filePath = tool.input?.path || tool.input?.file_path;
+    if (!filePath) {
+      return '';
+    }
+    
+    // 使用 FileTagParser 获取文件信息
+    const fileName = window.FileTagParser?.getFileNameFromPath?.(filePath) || filePath.split(/[\/\\]/).pop() || filePath;
+    const fileIcon = window.FileTagParser?.getDefaultFileIcon?.(filePath) || '📄';
+    
+    // 根据工具类型添加操作标签
+    let actionLabel = '';
+    switch (tool.name) {
+      case 'Read':
+        actionLabel = this.t('toolCall.fileRead') || '已读取';
+        break;
+      case 'Edit':
+      case 'MultiEdit':
+      case 'StrReplace':
+        actionLabel = this.t('toolCall.fileEdited') || '已编辑';
+        break;
+      case 'Write':
+        actionLabel = this.t('toolCall.fileCreated') || '已创建';
+        break;
+    }
+    
+    return `
+      <div class="file-tag-container">
+        <span class="file-tag-action">${actionLabel}</span>
+        <div class="file-tag" data-file-path="${this.escapeHtml(filePath)}" title="${this.escapeHtml(filePath)}">
+          <span class="file-tag-icon">${fileIcon}</span>
+          <span class="file-tag-name">${this.escapeHtml(fileName)}</span>
+          <span class="file-tag-open">${this.t('toolCall.openFile') || '打开'}</span>
+        </div>
+      </div>
+    `;
+  }
+  
+  /**
+   * 绑定文件标签点击事件
+   * @param {HTMLElement} container 包含文件标签的容器
+   */
+  bindFileTagEvents(container) {
+    const fileTags = container.querySelectorAll('.file-tag');
+    fileTags.forEach(tag => {
+      tag.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const filePath = tag.dataset.filePath;
+        if (filePath && this.app?.openChatFilePreview) {
+          console.log('[ToolCallRenderer] Opening file preview:', filePath);
+          this.app.openChatFilePreview(filePath);
+        } else if (filePath && this.app?.openFilePreview) {
+          // 回退到文档模式的文件预览
+          console.log('[ToolCallRenderer] Fallback to openFilePreview:', filePath);
+          this.app.openFilePreview(filePath);
+        }
+      });
+    });
+  }
+  
+  /**
+   * 追踪会话文件（添加到侧边栏）
+   * @param {Object} tool 工具数据
+   * @param {string} toolName 工具名称
+   */
+  trackSessionFile(tool, toolName) {
+    // 只追踪文件操作工具
+    const fileTools = ['Read', 'Edit', 'MultiEdit', 'Write', 'StrReplace'];
+    if (!fileTools.includes(toolName)) {
+      return;
+    }
+    
+    // 获取文件路径
+    const filePath = tool.input?.path || tool.input?.file_path;
+    if (!filePath) {
+      return;
+    }
+    
+    // 确定操作类型
+    let action = 'edited';
+    switch (toolName) {
+      case 'Read':
+        action = 'read';
+        break;
+      case 'Write':
+        action = 'created';
+        break;
+      case 'Edit':
+      case 'MultiEdit':
+      case 'StrReplace':
+        action = 'edited';
+        break;
+    }
+    
+    // 添加到会话文件列表
+    if (this.app?.addSessionFile) {
+      console.log('[ToolCallRenderer] Tracking session file:', filePath, action);
+      this.app.addSessionFile(filePath, action);
+      
+      // 创建或编辑文件时，自动打开展示区预览
+      if ((action === 'created' || action === 'edited') && this.app?.openChatFilePreview) {
+        console.log('[ToolCallRenderer] Auto-opening file preview:', filePath);
+        this.app.openChatFilePreview(filePath);
+        this.app.updateShowcaseToggleBtn?.();
+      }
+    }
   }
   
   /**

@@ -154,7 +154,12 @@
       // 帮助命令
       availableCommands: '可用命令:',
       noDescription: '无描述',
-      unknownCommand: '未知命令:'
+      unknownCommand: '未知命令:',
+      // 会话文件
+      sessionFiles: '会话文件',
+      noSessionFiles: '暂无文件',
+      // 展示区
+      toggleShowcase: '展示区'
     },
     
     // 浏览器面板
@@ -617,7 +622,13 @@
       copy: '复制',
       copied: '已复制!',
       copyCode: '复制代码',
-      copyMessage: '复制消息'
+      copyMessage: '复制消息',
+      
+      // 文件引用
+      fileRead: '已读取',
+      fileEdited: '已编辑',
+      fileCreated: '已创建',
+      openFile: '打开'
     },
     
     // 错误消息

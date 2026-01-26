@@ -44,6 +44,7 @@
   <link rel="stylesheet" href="css/components/dropdown.css">
   <link rel="stylesheet" href="css/components/connection-guide.css">
   <link rel="stylesheet" href="css/components/session-hub.css">
+  <link rel="stylesheet" href="css/components/chat-showcase.css">
   <!-- 工具类样式 -->
   <link rel="stylesheet" href="css/utilities/animations.css">
   <link rel="stylesheet" href="css/utilities/scrollbar.css">
@@ -166,6 +167,9 @@
             <!-- Reserved for future use -->
           </div>
           <div class="chat-header-right">
+            <button id="showcase-toggle-btn" class="chat-header-btn" data-i18n-title="chat.toggleShowcase" title="Toggle Showcase">
+              <svg viewBox="0 0 24 24"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>
+            </button>
             <button id="session-hub-btn" class="chat-header-btn" data-i18n-title="sessionHub.title" title="Session Hub">
               <svg viewBox="0 0 24 24"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
             </button>
@@ -208,6 +212,73 @@
               <svg viewBox="0 0 24 24"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
             </button>
           </div>
+        </div>
+      </section>
+      
+      <!-- 对话模式展示区（点击文件引用时展开） -->
+      <section id="chat-showcase" class="chat-showcase">
+        <div class="showcase-header">
+          <div class="showcase-tabs-scroll" id="showcase-tabs-scroll">
+            <!-- Tab 标签将在这里动态生成 -->
+          </div>
+          <button id="showcase-close-btn" class="showcase-close-btn" data-i18n-title="common.close" title="Close">
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+          </button>
+        </div>
+        <div class="showcase-body">
+          <!-- 文件预览主区域 -->
+          <div class="showcase-content" id="showcase-content">
+            <!-- 文件预览内容区（复用 file-preview 结构） -->
+            <div class="showcase-preview-header">
+              <span class="showcase-preview-title">
+                <span class="showcase-preview-icon" id="showcase-preview-icon">📄</span>
+                <span id="showcase-preview-filename">filename.txt</span>
+              </span>
+              <div class="showcase-preview-actions">
+                <div id="showcase-view-toggle" class="preview-view-toggle" style="display: none;">
+                  <button id="showcase-source-btn" class="view-toggle-btn active" data-i18n-title="explorer.preview.sourceView" title="Source">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                  </button>
+                  <button id="showcase-render-btn" class="view-toggle-btn" data-i18n-title="explorer.preview.renderedView" title="Preview">
+                    <svg viewBox="0 0 24 24" width="14" height="14"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                  </button>
+                </div>
+                <button id="showcase-edit-btn" class="showcase-action-btn" data-i18n="explorer.preview.edit">Edit</button>
+                <button id="showcase-save-btn" class="showcase-action-btn showcase-save-btn" style="display: none;" data-i18n="explorer.preview.save">Save</button>
+                <button id="showcase-cancel-btn" class="showcase-action-btn" style="display: none;" data-i18n="common.cancel">Cancel</button>
+              </div>
+            </div>
+            <div class="showcase-preview-content" id="showcase-preview-content">
+              <pre id="showcase-preview-code"><code></code></pre>
+              <!-- 编辑区 textarea -->
+              <textarea id="showcase-edit-area" class="showcase-edit-area" style="display: none;"></textarea>
+              <!-- HTML 渲染预览 iframe -->
+              <iframe id="showcase-preview-iframe" class="showcase-preview-iframe" style="display: none;"></iframe>
+              <!-- Markdown 渲染预览容器 -->
+              <div id="showcase-markdown-preview" class="markdown-preview" style="display: none;"></div>
+            </div>
+            <div class="showcase-preview-status">
+              <span id="showcase-file-size"></span>
+              <span id="showcase-file-modified"></span>
+              <span id="showcase-unsaved" class="showcase-unsaved" style="display: none;" data-i18n="explorer.preview.unsaved">Unsaved</span>
+            </div>
+          </div>
+          <!-- 会话文件侧边栏 -->
+          <aside class="session-files-sidebar" id="session-files-sidebar">
+            <div class="session-files-header">
+              <span class="session-files-title" data-i18n="chat.sessionFiles">Session Files</span>
+              <button class="session-files-toggle" id="session-files-toggle" data-i18n-title="common.collapse" title="Collapse">
+                <svg viewBox="0 0 24 24" width="12" height="12"><path d="m9 18 6-6-6-6"/></svg>
+              </button>
+            </div>
+            <div class="session-files-list" id="session-files-list">
+              <!-- 会话文件列表将在这里动态生成 -->
+              <div class="session-files-empty" id="session-files-empty">
+                <span class="session-files-empty-icon">📁</span>
+                <span class="session-files-empty-text" data-i18n="chat.noSessionFiles">No files yet</span>
+              </div>
+            </div>
+          </aside>
         </div>
       </section>
       
@@ -1462,6 +1533,7 @@
   
   <!-- Utils -->
   <script src="js/utils/optionsParser.js"></script>
+  <script src="js/utils/fileTagParser.js"></script>
   
   <!-- Features - Command Suggestions -->
   <script src="js/features/command-suggestions/index.js"></script>

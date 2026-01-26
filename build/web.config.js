@@ -59,6 +59,7 @@ const JS_FILES = [
     'js/sync/reducer.js',
     'js/sync/types.js',
     'js/utils/optionsParser.js',
+    'js/utils/fileTagParser.js',
     'js/wizards/AccountSetup.js',
     'js/wizards/SetupWizard.js',
     'js/marked.min.js',

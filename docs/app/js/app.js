@@ -116,6 +116,15 @@ class BrowserControlManagerApp {
     // 展示区显示的内容（默认文件）
     this.activeDisplayContent = 'files';
     
+    // 对话模式文件展示区状态
+    this.chatShowcaseOpen = false;
+    this.showcaseTabs = [];
+    this.activeShowcaseTabId = null;
+    this.showcaseIsEditing = false;
+    this.showcaseUnsaved = false;
+    this.showcaseViewMode = 'source'; // 'source' | 'rendered'
+    this.sessionFiles = []; // 会话中创建/编辑的文件列表
+    
     // 当前设置分区（默认环境分区）
     this.currentSettingsSection = 'environment';
 
@@ -443,6 +452,9 @@ class BrowserControlManagerApp {
     
     // Initialize i18n tool titles
     this.updateToolConfigTitles();
+    
+    // 初始化对话模式展示区事件
+    this.initChatShowcaseEvents();
     
     console.log('DeepSeek Cowork App initialized');
   }
@@ -2893,6 +2905,836 @@ handleKeyDown(e) {
   closeFilePreview() {
     this.explorerModule.closeFilePreview();
   }
+
+  // ============ 对话模式展示区（Chat Showcase）============
+
+  /**
+   * 打开对话模式文件预览
+   * 当用户在对话中点击文件引用标签时调用
+   * @param {string} filePath 文件路径
+   */
+  async openChatFilePreview(filePath) {
+    console.log('[App] Opening chat file preview:', filePath);
+    
+    // 打开展示区
+    this.openChatShowcase();
+    
+    // 读取文件内容并显示
+    await this.loadFileIntoShowcase(filePath);
+  }
+
+  /**
+   * 打开对话模式展示区
+   */
+  openChatShowcase() {
+    const showcase = document.getElementById('chat-showcase');
+    if (showcase) {
+      showcase.classList.add('open');
+      this.chatShowcaseOpen = true;
+      console.log('[App] Chat showcase opened');
+    }
+  }
+
+  /**
+   * 关闭对话模式展示区
+   */
+  closeChatShowcase() {
+    const showcase = document.getElementById('chat-showcase');
+    if (showcase) {
+      showcase.classList.remove('open');
+      this.chatShowcaseOpen = false;
+      this.showcaseTabs = [];
+      this.activeShowcaseTabId = null;
+      console.log('[App] Chat showcase closed');
+    }
+  }
+
+  /**
+   * 切换对话模式展示区
+   */
+  toggleChatShowcase() {
+    if (this.chatShowcaseOpen) {
+      this.closeChatShowcase();
+    } else {
+      this.openChatShowcase();
+    }
+  }
+
+  /**
+   * 加载文件到展示区
+   * @param {string} filePath 文件路径
+   */
+  async loadFileIntoShowcase(filePath) {
+    const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
+    
+    // 获取文件名和图标
+    const fileName = window.FileTagParser?.getFileNameFromPath?.(filePath) || filePath.split(/[\/\\]/).pop() || filePath;
+    const fileIcon = window.FileTagParser?.getDefaultFileIcon?.(filePath) || '📄';
+    const ext = filePath.split('.').pop()?.toLowerCase() || '';
+    
+    // 重置编辑状态
+    this.toggleShowcaseEdit(false);
+    
+    // 更新 UI
+    const previewIcon = document.getElementById('showcase-preview-icon');
+    const previewFilename = document.getElementById('showcase-preview-filename');
+    const previewCode = document.getElementById('showcase-preview-code');
+    const markdownPreview = document.getElementById('showcase-markdown-preview');
+    const previewIframe = document.getElementById('showcase-preview-iframe');
+    const editArea = document.getElementById('showcase-edit-area');
+    
+    if (previewIcon) previewIcon.textContent = fileIcon;
+    if (previewFilename) previewFilename.textContent = fileName;
+    if (previewCode) previewCode.innerHTML = `<code>${t('common.loading') || 'Loading...'}</code>`;
+    
+    // 隐藏所有预览元素
+    if (previewCode) previewCode.style.display = 'none';
+    if (markdownPreview) markdownPreview.style.display = 'none';
+    if (previewIframe) previewIframe.style.display = 'none';
+    if (editArea) editArea.style.display = 'none';
+    
+    // 添加或激活 Tab
+    this.addOrActivateShowcaseTab(filePath, fileName, fileIcon);
+    
+    try {
+      let content = null;
+      
+      // 优先使用 Explorer HTTP API
+      if (this.explorerModule?.explorerManager && this.explorerModule.explorerConnected) {
+        try {
+          const result = await this.explorerModule.explorerManager.readFile(filePath);
+          if (result.status === 'success') {
+            content = result.content;
+          }
+        } catch (e) {
+          console.warn('[App] Showcase HTTP API failed:', e.message);
+        }
+      }
+      
+      // 回退到 IPC
+      if (content === null) {
+        const result = await window.browserControlManager?.readFileContent?.(filePath);
+        if (result?.success) {
+          content = result.content;
+        } else {
+          throw new Error(result?.error || t('errors.readFailed'));
+        }
+      }
+      
+      // 更新 Tab 内容缓存
+      const tab = this.showcaseTabs?.find(t => t.path === filePath);
+      if (tab) {
+        tab.content = content;
+        tab.originalContent = content;
+      }
+      
+      // 渲染内容
+      const markdownExts = ['md', 'markdown'];
+      const htmlExts = ['html', 'htm'];
+      const isMarkdown = markdownExts.includes(ext);
+      const isHtml = htmlExts.includes(ext);
+      const renderableExts = [...markdownExts, ...htmlExts];
+      
+      // 根据视图模式和文件类型渲染
+      if (isMarkdown || isHtml) {
+        // HTML/Markdown 默认显示渲染模式
+        this.showcaseViewMode = 'rendered';
+        
+        // 显示视图切换按钮
+        const viewToggle = document.getElementById('showcase-view-toggle');
+        if (viewToggle) viewToggle.style.display = 'inline-flex';
+        
+        // 更新切换按钮状态
+        const sourceBtn = document.getElementById('showcase-source-btn');
+        const renderBtn = document.getElementById('showcase-render-btn');
+        sourceBtn?.classList.remove('active');
+        renderBtn?.classList.add('active');
+        
+        // 隐藏源码，显示渲染
+        if (previewCode) previewCode.style.display = 'none';
+        
+        if (isMarkdown && markdownPreview) {
+          markdownPreview.style.display = 'block';
+          if (typeof marked !== 'undefined') {
+            markdownPreview.innerHTML = marked.parse(content || '');
+            // 语法高亮代码块
+            if (typeof hljs !== 'undefined') {
+              markdownPreview.querySelectorAll('pre code').forEach(block => {
+                try { hljs.highlightElement(block); } catch (e) {}
+              });
+            }
+          } else {
+            markdownPreview.innerHTML = `<pre>${this.escapeHtml(content || '')}</pre>`;
+          }
+        } else if (isHtml && previewIframe) {
+          // 渲染 HTML 到 iframe
+          const tab = this.showcaseTabs?.find(t => t.path === filePath);
+          if (tab) {
+            tab.content = content;
+            this.renderShowcaseHtmlPreview(tab);
+          }
+        }
+      } else {
+        // 代码文件渲染
+        if (previewCode) {
+          previewCode.style.display = 'block';
+          const code = previewCode.querySelector('code') || previewCode;
+          code.textContent = content;
+          
+          // 语法高亮
+          if (typeof hljs !== 'undefined') {
+            hljs.highlightElement(code);
+          }
+        }
+        // 隐藏视图切换按钮
+        const viewToggle = document.getElementById('showcase-view-toggle');
+        if (viewToggle) viewToggle.style.display = 'none';
+      }
+      
+    } catch (error) {
+      console.error('[App] Failed to load file:', error);
+      if (previewCode) {
+        previewCode.style.display = 'block';
+        previewCode.innerHTML = `<code class="error">${t('errors.loadFailed')}: ${error.message}</code>`;
+      }
+    }
+  }
+
+  /**
+   * 添加或激活展示区 Tab
+   * @param {string} filePath 文件路径
+   * @param {string} fileName 文件名
+   * @param {string} fileIcon 文件图标
+   */
+  addOrActivateShowcaseTab(filePath, fileName, fileIcon) {
+    if (!this.showcaseTabs) {
+      this.showcaseTabs = [];
+    }
+    
+    // 检查是否已存在
+    let tab = this.showcaseTabs.find(t => t.path === filePath);
+    
+    if (!tab) {
+      // 创建新 Tab
+      tab = {
+        id: `showcase-tab-${Date.now()}`,
+        path: filePath,
+        name: fileName,
+        icon: fileIcon,
+        content: null,
+        originalContent: null,
+        isDirty: false
+      };
+      this.showcaseTabs.push(tab);
+    }
+    
+    // 激活此 Tab
+    this.activeShowcaseTabId = tab.id;
+    
+    // 渲染 Tab 栏
+    this.renderShowcaseTabs();
+  }
+
+  /**
+   * 渲染展示区 Tab 栏
+   */
+  renderShowcaseTabs() {
+    const container = document.getElementById('showcase-tabs-scroll');
+    if (!container || !this.showcaseTabs) return;
+    
+    container.innerHTML = '';
+    
+    this.showcaseTabs.forEach(tab => {
+      const tabEl = document.createElement('div');
+      const classes = ['showcase-tab'];
+      if (tab.id === this.activeShowcaseTabId) classes.push('active');
+      if (tab.isDirty) classes.push('dirty');
+      tabEl.className = classes.join(' ');
+      tabEl.dataset.tabId = tab.id;
+      tabEl.dataset.filePath = tab.path;
+      
+      tabEl.innerHTML = `
+        <span class="showcase-tab-icon">${tab.icon}</span>
+        <span class="showcase-tab-name">${this.escapeHtml(tab.name)}</span>
+        <span class="showcase-tab-close">
+          <svg viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+        </span>
+      `;
+      
+      // Tab 点击事件（切换）
+      tabEl.addEventListener('click', (e) => {
+        if (!e.target.closest('.showcase-tab-close')) {
+          this.switchShowcaseTab(tab.id);
+        }
+      });
+      
+      // 关闭按钮事件
+      const closeBtn = tabEl.querySelector('.showcase-tab-close');
+      closeBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.closeShowcaseTab(tab.id);
+      });
+      
+      container.appendChild(tabEl);
+    });
+  }
+
+  /**
+   * 切换展示区 Tab
+   * @param {string} tabId Tab ID
+   */
+  async switchShowcaseTab(tabId) {
+    const tab = this.showcaseTabs?.find(t => t.id === tabId);
+    if (!tab) return;
+    
+    this.activeShowcaseTabId = tabId;
+    this.renderShowcaseTabs();
+    
+    // 如果有缓存内容，直接显示；否则重新加载
+    if (tab.content) {
+      this.displayShowcaseContent(tab);
+    } else {
+      await this.loadFileIntoShowcase(tab.path);
+    }
+  }
+
+  /**
+   * 显示展示区内容（使用缓存）
+   * @param {Object} tab Tab 对象
+   */
+  displayShowcaseContent(tab) {
+    const ext = tab.path.split('.').pop()?.toLowerCase() || '';
+    const previewIcon = document.getElementById('showcase-preview-icon');
+    const previewFilename = document.getElementById('showcase-preview-filename');
+    const previewCode = document.getElementById('showcase-preview-code');
+    const markdownPreview = document.getElementById('showcase-markdown-preview');
+    const previewIframe = document.getElementById('showcase-preview-iframe');
+    const editArea = document.getElementById('showcase-edit-area');
+    
+    if (previewIcon) previewIcon.textContent = tab.icon;
+    if (previewFilename) previewFilename.textContent = tab.name;
+    
+    // 隐藏所有预览元素
+    if (previewCode) previewCode.style.display = 'none';
+    if (markdownPreview) markdownPreview.style.display = 'none';
+    if (previewIframe) previewIframe.style.display = 'none';
+    if (editArea) editArea.style.display = 'none';
+    
+    // 退出编辑模式
+    this.toggleShowcaseEdit(false);
+    
+    // 更新未保存状态
+    const unsavedEl = document.getElementById('showcase-unsaved');
+    if (unsavedEl) unsavedEl.style.display = tab.isDirty ? 'inline' : 'none';
+    
+    const markdownExts = ['md', 'markdown'];
+    const htmlExts = ['html', 'htm'];
+    const isMarkdown = markdownExts.includes(ext);
+    const isHtml = htmlExts.includes(ext);
+    const renderableExts = [...markdownExts, ...htmlExts];
+    
+    // 显示/隐藏视图切换按钮
+    const viewToggle = document.getElementById('showcase-view-toggle');
+    if (viewToggle) {
+      viewToggle.style.display = renderableExts.includes(ext) ? 'inline-flex' : 'none';
+    }
+    
+    const sourceBtn = document.getElementById('showcase-source-btn');
+    const renderBtn = document.getElementById('showcase-render-btn');
+    
+    if (isMarkdown || isHtml) {
+      // HTML/Markdown 默认显示渲染模式
+      this.showcaseViewMode = 'rendered';
+      sourceBtn?.classList.remove('active');
+      renderBtn?.classList.add('active');
+      
+      if (isMarkdown && markdownPreview) {
+        markdownPreview.style.display = 'block';
+        if (typeof marked !== 'undefined') {
+          markdownPreview.innerHTML = marked.parse(tab.content || '');
+          if (typeof hljs !== 'undefined') {
+            markdownPreview.querySelectorAll('pre code').forEach(block => {
+              try { hljs.highlightElement(block); } catch (e) {}
+            });
+          }
+        } else {
+          markdownPreview.innerHTML = `<pre>${this.escapeHtml(tab.content || '')}</pre>`;
+        }
+      } else if (isHtml) {
+        this.renderShowcaseHtmlPreview(tab);
+      }
+    } else {
+      // 其他文件显示源码
+      this.showcaseViewMode = 'source';
+      sourceBtn?.classList.add('active');
+      renderBtn?.classList.remove('active');
+      
+      if (previewCode) {
+        previewCode.style.display = 'block';
+        const code = previewCode.querySelector('code') || previewCode;
+        code.textContent = tab.content;
+        if (typeof hljs !== 'undefined') {
+          hljs.highlightElement(code);
+        }
+      }
+    }
+  }
+
+  /**
+   * 关闭展示区 Tab
+   * @param {string} tabId Tab ID
+   */
+  closeShowcaseTab(tabId) {
+    if (!this.showcaseTabs) return;
+    
+    const tabIndex = this.showcaseTabs.findIndex(t => t.id === tabId);
+    if (tabIndex === -1) return;
+    
+    this.showcaseTabs.splice(tabIndex, 1);
+    
+    // 如果没有 Tab 了，关闭展示区
+    if (this.showcaseTabs.length === 0) {
+      this.closeChatShowcase();
+      return;
+    }
+    
+    // 如果关闭的是当前激活的 Tab，切换到相邻 Tab
+    if (this.activeShowcaseTabId === tabId) {
+      const newIndex = Math.min(tabIndex, this.showcaseTabs.length - 1);
+      this.switchShowcaseTab(this.showcaseTabs[newIndex].id);
+    } else {
+      this.renderShowcaseTabs();
+    }
+  }
+
+  /**
+   * 初始化展示区事件
+   */
+  initChatShowcaseEvents() {
+    // 顶栏展示区切换按钮
+    const toggleBtn = document.getElementById('showcase-toggle-btn');
+    toggleBtn?.addEventListener('click', () => {
+      this.toggleChatShowcase();
+      this.updateShowcaseToggleBtn();
+    });
+    
+    // 关闭按钮
+    const closeBtn = document.getElementById('showcase-close-btn');
+    closeBtn?.addEventListener('click', () => {
+      this.closeChatShowcase();
+      this.updateShowcaseToggleBtn();
+    });
+    
+    // 编辑按钮
+    const editBtn = document.getElementById('showcase-edit-btn');
+    editBtn?.addEventListener('click', () => {
+      this.toggleShowcaseEdit(true);
+    });
+    
+    // 保存按钮
+    const saveBtn = document.getElementById('showcase-save-btn');
+    saveBtn?.addEventListener('click', () => {
+      this.saveShowcaseFile();
+    });
+    
+    // 取消按钮
+    const cancelBtn = document.getElementById('showcase-cancel-btn');
+    cancelBtn?.addEventListener('click', () => {
+      this.cancelShowcaseEdit();
+    });
+    
+    // 编辑区内容变化监听
+    const editArea = document.getElementById('showcase-edit-area');
+    editArea?.addEventListener('input', () => {
+      this.showcaseUnsaved = true;
+      const unsavedEl = document.getElementById('showcase-unsaved');
+      if (unsavedEl) unsavedEl.style.display = 'inline';
+      
+      // 更新 Tab 脏状态
+      const tab = this.showcaseTabs?.find(t => t.id === this.activeShowcaseTabId);
+      if (tab) {
+        tab.isDirty = true;
+        tab.content = editArea.value;
+        this.renderShowcaseTabs();
+      }
+    });
+    
+    // 视图切换按钮
+    const sourceBtn = document.getElementById('showcase-source-btn');
+    const renderBtn = document.getElementById('showcase-render-btn');
+    
+    sourceBtn?.addEventListener('click', () => {
+      this.switchShowcaseView('source');
+    });
+    
+    renderBtn?.addEventListener('click', () => {
+      this.switchShowcaseView('rendered');
+    });
+    
+    // 会话文件侧边栏折叠按钮
+    const sidebarToggle = document.getElementById('session-files-toggle');
+    sidebarToggle?.addEventListener('click', () => {
+      this.toggleSessionFilesSidebar();
+    });
+  }
+
+  // ============ 会话文件管理 ============
+
+  /**
+   * 添加会话文件记录
+   * @param {string} filePath 文件路径
+   * @param {string} action 操作类型: 'created' | 'edited' | 'read'
+   */
+  addSessionFile(filePath, action = 'edited') {
+    if (!filePath) return;
+    
+    // 检查是否已存在
+    const existingIndex = this.sessionFiles.findIndex(f => f.path === filePath);
+    
+    if (existingIndex >= 0) {
+      // 更新操作类型（优先级：created > edited > read）
+      const existing = this.sessionFiles[existingIndex];
+      if (action === 'created' || (action === 'edited' && existing.action === 'read')) {
+        existing.action = action;
+      }
+      existing.timestamp = Date.now();
+    } else {
+      // 添加新文件
+      const fileName = window.FileTagParser?.getFileNameFromPath?.(filePath) || filePath.split(/[\/\\]/).pop() || filePath;
+      const fileIcon = window.FileTagParser?.getDefaultFileIcon?.(filePath) || '📄';
+      
+      this.sessionFiles.push({
+        path: filePath,
+        name: fileName,
+        icon: fileIcon,
+        action: action,
+        timestamp: Date.now()
+      });
+    }
+    
+    // 渲染侧边栏
+    this.renderSessionFiles();
+  }
+
+  /**
+   * 渲染会话文件列表
+   */
+  renderSessionFiles() {
+    const container = document.getElementById('session-files-list');
+    const emptyEl = document.getElementById('session-files-empty');
+    
+    if (!container) return;
+    
+    // 清空列表（保留空状态元素）
+    const items = container.querySelectorAll('.session-file-item');
+    items.forEach(item => item.remove());
+    
+    if (this.sessionFiles.length === 0) {
+      if (emptyEl) emptyEl.style.display = 'flex';
+      return;
+    }
+    
+    if (emptyEl) emptyEl.style.display = 'none';
+    
+    const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
+    const actionLabels = {
+      created: t('toolCall.fileCreated') || 'Created',
+      edited: t('toolCall.fileEdited') || 'Edited',
+      read: t('toolCall.fileRead') || 'Read'
+    };
+    
+    // 按时间倒序排列
+    const sortedFiles = [...this.sessionFiles].sort((a, b) => b.timestamp - a.timestamp);
+    
+    sortedFiles.forEach(file => {
+      const item = document.createElement('div');
+      item.className = 'session-file-item';
+      item.dataset.filePath = file.path;
+      
+      // 检查是否是当前活动的文件
+      const activeTab = this.showcaseTabs?.find(t => t.id === this.activeShowcaseTabId);
+      if (activeTab && activeTab.path === file.path) {
+        item.classList.add('active');
+      }
+      
+      item.innerHTML = `
+        <span class="session-file-icon">${file.icon}</span>
+        <div class="session-file-info">
+          <span class="session-file-name" title="${this.escapeHtml(file.path)}">${this.escapeHtml(file.name)}</span>
+          <span class="session-file-action ${file.action}">${actionLabels[file.action] || file.action}</span>
+        </div>
+      `;
+      
+      // 双击打开文件
+      item.addEventListener('dblclick', () => {
+        this.openChatFilePreview(file.path);
+      });
+      
+      // 单击选中
+      item.addEventListener('click', () => {
+        container.querySelectorAll('.session-file-item').forEach(el => el.classList.remove('active'));
+        item.classList.add('active');
+      });
+      
+      container.appendChild(item);
+    });
+  }
+
+  /**
+   * 切换会话文件侧边栏折叠状态
+   */
+  toggleSessionFilesSidebar() {
+    const sidebar = document.getElementById('session-files-sidebar');
+    sidebar?.classList.toggle('collapsed');
+  }
+
+  /**
+   * 清空会话文件列表
+   */
+  clearSessionFiles() {
+    this.sessionFiles = [];
+    this.renderSessionFiles();
+  }
+
+  /**
+   * 更新展示区切换按钮状态
+   */
+  updateShowcaseToggleBtn() {
+    const toggleBtn = document.getElementById('showcase-toggle-btn');
+    if (toggleBtn) {
+      toggleBtn.classList.toggle('active', this.chatShowcaseOpen);
+    }
+  }
+
+  /**
+   * 切换展示区视图模式
+   * @param {string} mode 'source' | 'rendered'
+   */
+  switchShowcaseView(mode) {
+    this.showcaseViewMode = mode;
+    
+    const tab = this.showcaseTabs?.find(t => t.id === this.activeShowcaseTabId);
+    if (!tab) return;
+    
+    const ext = tab.path.split('.').pop()?.toLowerCase() || '';
+    const previewCode = document.getElementById('showcase-preview-code');
+    const markdownPreview = document.getElementById('showcase-markdown-preview');
+    const previewIframe = document.getElementById('showcase-preview-iframe');
+    const sourceBtn = document.getElementById('showcase-source-btn');
+    const renderBtn = document.getElementById('showcase-render-btn');
+    
+    const markdownExts = ['md', 'markdown'];
+    const htmlExts = ['html', 'htm'];
+    const isMarkdown = markdownExts.includes(ext);
+    const isHtml = htmlExts.includes(ext);
+    
+    if (mode === 'source') {
+      sourceBtn?.classList.add('active');
+      renderBtn?.classList.remove('active');
+      
+      if (previewCode) previewCode.style.display = 'block';
+      if (markdownPreview) markdownPreview.style.display = 'none';
+      if (previewIframe) previewIframe.style.display = 'none';
+    } else {
+      sourceBtn?.classList.remove('active');
+      renderBtn?.classList.add('active');
+      
+      if (previewCode) previewCode.style.display = 'none';
+      
+      if (isMarkdown && markdownPreview) {
+        markdownPreview.style.display = 'block';
+        if (previewIframe) previewIframe.style.display = 'none';
+        if (typeof marked !== 'undefined') {
+          markdownPreview.innerHTML = marked.parse(tab.content || '');
+          // 语法高亮代码块
+          if (typeof hljs !== 'undefined') {
+            markdownPreview.querySelectorAll('pre code').forEach(block => {
+              try { hljs.highlightElement(block); } catch (e) {}
+            });
+          }
+        } else {
+          markdownPreview.innerHTML = `<pre>${this.escapeHtml(tab.content || '')}</pre>`;
+        }
+      } else if (isHtml && previewIframe) {
+        if (markdownPreview) markdownPreview.style.display = 'none';
+        this.renderShowcaseHtmlPreview(tab);
+      }
+    }
+  }
+
+  /**
+   * 渲染 HTML 预览到 iframe
+   * @param {Object} tab Tab 对象
+   */
+  renderShowcaseHtmlPreview(tab) {
+    const iframe = document.getElementById('showcase-preview-iframe');
+    if (!iframe) return;
+    
+    iframe.style.display = 'block';
+    
+    // 检测运行环境
+    const isWebMode = window.browserControlManager?._isPolyfill === true;
+    
+    if (tab.path && isWebMode) {
+      // Web 模式：使用 HTTP 代理服务文件
+      const baseUrl = window.apiAdapter?._baseUrl || 'http://localhost:3333';
+      const filePath = tab.path.replace(/\\/g, '/');
+      const serveUrl = `${baseUrl}/api/files/serve?path=${encodeURIComponent(filePath)}`;
+      iframe.src = serveUrl;
+    } else if (tab.path) {
+      // Electron 模式：使用 file:// 协议
+      const filePath = tab.path.replace(/\\/g, '/');
+      const fileUrl = filePath.match(/^[a-zA-Z]:/) 
+        ? `file:///${filePath}` 
+        : `file://${filePath}`;
+      iframe.src = fileUrl;
+    } else if (tab.content) {
+      // 只有内容没有路径时使用 srcdoc
+      iframe.srcdoc = tab.content;
+    }
+  }
+
+  /**
+   * 切换展示区编辑模式
+   * @param {boolean} editing 是否编辑中
+   */
+  toggleShowcaseEdit(editing) {
+    this.showcaseIsEditing = editing;
+    
+    const previewCode = document.getElementById('showcase-preview-code');
+    const markdownPreview = document.getElementById('showcase-markdown-preview');
+    const previewIframe = document.getElementById('showcase-preview-iframe');
+    const editArea = document.getElementById('showcase-edit-area');
+    const editBtn = document.getElementById('showcase-edit-btn');
+    const saveBtn = document.getElementById('showcase-save-btn');
+    const cancelBtn = document.getElementById('showcase-cancel-btn');
+    const viewToggle = document.getElementById('showcase-view-toggle');
+    
+    if (editing) {
+      // 进入编辑模式
+      const tab = this.showcaseTabs?.find(t => t.id === this.activeShowcaseTabId);
+      
+      if (previewCode) previewCode.style.display = 'none';
+      if (markdownPreview) markdownPreview.style.display = 'none';
+      if (previewIframe) previewIframe.style.display = 'none';
+      if (editArea) {
+        editArea.style.display = 'block';
+        editArea.value = tab?.content || '';
+        editArea.focus();
+      }
+      if (editBtn) editBtn.style.display = 'none';
+      if (saveBtn) saveBtn.style.display = 'inline-block';
+      if (cancelBtn) cancelBtn.style.display = 'inline-block';
+      if (viewToggle) viewToggle.style.display = 'none';
+    } else {
+      // 退出编辑模式
+      if (editArea) editArea.style.display = 'none';
+      if (editBtn) editBtn.style.display = 'inline-block';
+      if (saveBtn) saveBtn.style.display = 'none';
+      if (cancelBtn) cancelBtn.style.display = 'none';
+      this.showcaseUnsaved = false;
+      
+      // 恢复视图切换按钮（如果是可渲染文件）
+      const tab = this.showcaseTabs?.find(t => t.id === this.activeShowcaseTabId);
+      if (tab) {
+        const ext = tab.path.split('.').pop()?.toLowerCase() || '';
+        const renderableExts = ['md', 'markdown', 'html', 'htm'];
+        if (viewToggle && renderableExts.includes(ext)) {
+          viewToggle.style.display = 'inline-flex';
+        }
+      }
+    }
+  }
+
+  /**
+   * 保存展示区文件
+   */
+  async saveShowcaseFile() {
+    const tab = this.showcaseTabs?.find(t => t.id === this.activeShowcaseTabId);
+    if (!tab) return;
+    
+    const editArea = document.getElementById('showcase-edit-area');
+    const content = editArea?.value || '';
+    const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
+    
+    try {
+      let success = false;
+      
+      // 优先使用 Explorer HTTP API
+      if (this.explorerModule?.explorerManager && this.explorerModule.explorerConnected) {
+        try {
+          const result = await this.explorerModule.explorerManager.saveFile(tab.path, content);
+          success = result.status === 'success';
+        } catch (e) {
+          console.warn('[App] Showcase HTTP API save failed:', e.message);
+        }
+      }
+      
+      // 回退到 IPC
+      if (!success) {
+        const result = await window.browserControlManager?.saveFileContent?.(tab.path, content);
+        success = result?.success;
+        if (!success) {
+          throw new Error(result?.error || t('errors.saveFailed'));
+        }
+      }
+      
+      // 更新 Tab 状态
+      tab.content = content;
+      tab.originalContent = content;
+      tab.isDirty = false;
+      
+      // 更新 UI
+      const unsavedEl = document.getElementById('showcase-unsaved');
+      if (unsavedEl) unsavedEl.style.display = 'none';
+      
+      this.renderShowcaseTabs();
+      this.toggleShowcaseEdit(false);
+      
+      // 重新渲染内容
+      const ext = tab.path.split('.').pop()?.toLowerCase() || '';
+      const previewCode = document.getElementById('showcase-preview-code');
+      if (previewCode) {
+        previewCode.style.display = 'block';
+        const code = previewCode.querySelector('code') || previewCode;
+        code.textContent = content;
+        if (typeof hljs !== 'undefined') {
+          hljs.highlightElement(code);
+        }
+      }
+      
+      console.log('[App] Showcase file saved successfully');
+      
+    } catch (error) {
+      console.error('[App] Failed to save showcase file:', error);
+      alert(t('errors.saveFailed') + ': ' + error.message);
+    }
+  }
+
+  /**
+   * 取消展示区编辑
+   */
+  cancelShowcaseEdit() {
+    const tab = this.showcaseTabs?.find(t => t.id === this.activeShowcaseTabId);
+    if (tab) {
+      // 恢复原始内容
+      tab.content = tab.originalContent;
+      tab.isDirty = false;
+    }
+    
+    const unsavedEl = document.getElementById('showcase-unsaved');
+    if (unsavedEl) unsavedEl.style.display = 'none';
+    
+    this.renderShowcaseTabs();
+    this.toggleShowcaseEdit(false);
+    
+    // 重新显示内容
+    if (tab) {
+      this.displayShowcaseContent(tab);
+    }
+  }
+
+  // ============ 委托方法（继续） ============
 
   /**
    * 生成唯一的标签 ID（委托给 ExplorerModule）
