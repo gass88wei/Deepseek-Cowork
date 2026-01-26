@@ -44,3 +44,6 @@ lib/happy-cli/.git/
 
 # happy-cli 解压后的二进制文件（由 postinstall 自动生成，difft.exe 超过 100MB）
 lib/happy-cli/tools/unpacked/
+
+# 动态生成的 daemon 启动脚本（由 start.mjs 自动生成，包含本地绝对路径）
+packages/cli/commands/start-daemon.mjs

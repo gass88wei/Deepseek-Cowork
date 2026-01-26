@@ -247,12 +247,11 @@ export async function startCommand(options) {
 /**
  * 创建后台启动脚本
  * @param {string} scriptPath 脚本保存路径
- * @param {string} packageRoot 包根目录（用于定位 lib/local-service）
+ * @param {string} packageRoot 包根目录（未使用，保留参数兼容性）
  */
 function createDaemonScript(scriptPath, packageRoot) {
-    // 使用绝对路径，确保在任何位置都能正确找到模块
-    const localServicePath = join(packageRoot, 'lib', 'local-service').replace(/\\/g, '/');
-    
+    // 生成使用动态路径解析的脚本，避免硬编码绝对路径
+    // 脚本运行时会根据自身位置计算 local-service 路径
     const script = `#!/usr/bin/env node
 
 /**
@@ -260,11 +259,51 @@ function createDaemonScript(scriptPath, packageRoot) {
  * 自动生成，请勿手动修改
  */
 
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
+import { existsSync } from 'fs';
 import { createRequire } from 'module';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
 
-// 使用绝对路径加载 local-service
-const localService = require('${localServicePath}');
+/**
+ * 智能获取项目根目录
+ * - 开发模式：packages/cli/commands -> 项目根目录
+ * - 打包模式：检测 lib/ 目录位置
+ */
+function getProjectRoot() {
+    // 方案1：开发模式（packages/cli/commands 结构）
+    const devRoot = join(__dirname, '../../..');
+    if (existsSync(join(devRoot, 'lib/local-service/index.js'))) {
+        return devRoot;
+    }
+    
+    // 方案2：打包后的结构（lib/ 在 cli.mjs 同级目录）
+    const distRoot = join(__dirname, '..');
+    if (existsSync(join(distRoot, 'lib/local-service/index.js'))) {
+        return distRoot;
+    }
+    
+    // 方案3：当前目录
+    if (existsSync(join(__dirname, 'lib/local-service/index.js'))) {
+        return __dirname;
+    }
+    
+    throw new Error(
+        'Cannot find lib/local-service module.\\n' +
+        '  __dirname: ' + __dirname + '\\n' +
+        '  Checked paths:\\n' +
+        '    - ' + join(devRoot, 'lib/local-service/index.js') + '\\n' +
+        '    - ' + join(distRoot, 'lib/local-service/index.js') + '\\n' +
+        '    - ' + join(__dirname, 'lib/local-service/index.js')
+    );
+}
+
+// 动态加载 local-service
+const PROJECT_ROOT = getProjectRoot();
+const localService = require(join(PROJECT_ROOT, 'lib/local-service'));
 
 // 解析命令行参数
 const args = process.argv.slice(2);
