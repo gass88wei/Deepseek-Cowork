@@ -11,7 +11,7 @@
     <img src="https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square" alt="License: MIT" />
   </a>
   <a href="https://github.com/imjszhang/deepseek-cowork">
-    <img src="https://img.shields.io/badge/Version-0.1.22-blue.svg?style=flat-square" alt="Version" />
+    <img src="https://img.shields.io/badge/Version-0.1.23-blue.svg?style=flat-square" alt="Version" />
   </a>
   <a href="https://www.electronjs.org/">
     <img src="https://img.shields.io/badge/Electron-28.x-47848F?style=flat-square&logo=electron" alt="Electron" />
@@ -182,8 +182,8 @@ npm start
 ### 配置本地服务
 
 ```bash
-# 全局安装 CLI 工具（最新版本: 0.1.22）
-npm install -g deepseek-cowork@0.1.22
+# 全局安装 CLI 工具（最新版本: 0.1.23）
+npm install -g deepseek-cowork@0.1.23
 
 # 启动本地服务（后台模式）
 deepseek-cowork start --daemon
@@ -194,7 +194,7 @@ deepseek-cowork open
 
 ### CLI 命令参考
 
-> **CLI 版本**: `deepseek-cowork@0.1.21`
+> **CLI 版本**: `deepseek-cowork@0.1.23`
 
 | 命令 | 说明 |
 |------|------|
@@ -237,7 +237,7 @@ npm run build:all
 
 ### 版本管理
 
-项目采用语义化版本规范 (SemVer)。当前版本：**V0.1.22**
+项目采用语义化版本规范 (SemVer)。当前版本：**V0.1.23**
 
 更新版本号：
 
@@ -294,6 +294,6 @@ MIT
 
 [![X](https://img.shields.io/badge/X-@imjszhang-000000?logo=x)](https://x.com/imjszhang)
 
-*当前版本: V0.1.22 | 最后更新: 2026-01-27*
+*当前版本: V0.1.23 | 最后更新: 2026-01-27*
 
 </div>

@@ -242,7 +242,9 @@ class BrowserControlServerConfig {
       // 2. 合并传入的 browserControlConfig
       if (options.browserControlConfig) {
         console.log('Using integrated config mode');
+        console.log('[Config] Input browserControlConfig.security:', JSON.stringify(options.browserControlConfig.security, null, 2));
         config = this.deepMerge(config, options.browserControlConfig);
+        console.log('[Config] Merged config.security:', JSON.stringify(config.security, null, 2));
       } else {
         console.log('Using standalone config mode');
       }

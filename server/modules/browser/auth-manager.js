@@ -30,6 +30,8 @@ class AuthManager {
    * @param {number} config.challengeTimeout Challenge 超时时间（秒）
    */
   constructor(config = {}) {
+    Logger.info('[AuthManager] Input config:', JSON.stringify(config, null, 2));
+    
     this.config = {
       enabled: true,
       secretKey: null,
@@ -40,6 +42,8 @@ class AuthManager {
       challengeTimeout: 30,       // 30秒
       ...config
     };
+    
+    Logger.info('[AuthManager] Merged config:', JSON.stringify(this.config, null, 2));
 
     // 存储待验证的 challenge
     this.pendingChallenges = new Map();

@@ -169,6 +169,12 @@ function setupBrowserControlService(options = {}) {
     async initSecurityModules() {
       const securityConfig = this.config.security || {};
       
+      // 调试日志
+      Logger.info('[initSecurityModules] securityConfig:', JSON.stringify(securityConfig, null, 2));
+      Logger.info('[initSecurityModules] auth config:', JSON.stringify(securityConfig.auth, null, 2));
+      Logger.info('[initSecurityModules] auth.enabled:', securityConfig.auth?.enabled);
+      Logger.info('[initSecurityModules] auth.enabled !== false:', securityConfig.auth?.enabled !== false);
+      
       // 初始化认证管理器
       if (securityConfig.auth?.enabled !== false) {
         try {
