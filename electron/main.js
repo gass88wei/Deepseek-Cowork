@@ -2217,6 +2217,7 @@ function setupHappyServiceEventForwarding() {
     'happy:eventStatus',
     'happy:usage',
     'happy:messagesRestored',
+    'happy:agentState',  // agentState 更新事件（权限请求）
     // daemon 相关事件（由 HappyService 转发）
     'daemon:statusChanged',
     'daemon:startProgress',

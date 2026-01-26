@@ -18,6 +18,10 @@ class HappyMessageHandler {
     // Reducer 状态
     this.reducerState = null;
     
+    // agentState 状态（用于权限请求）
+    this.agentState = null;
+    this.agentStateVersion = 0;
+    
     // 状态
     this.eventStatus = 'idle'; // idle, processing, ready
     this.statusTimeoutId = null;
@@ -25,6 +29,82 @@ class HappyMessageHandler {
     
     // 初始化 Reducer
     this.initReducer();
+    
+    // 订阅 agentState 更新事件
+    this._subscribeAgentState();
+  }
+  
+  /**
+   * 订阅 agentState 更新事件
+   * @private
+   */
+  _subscribeAgentState() {
+    // Electron 版本
+    if (window.browserControlManager?.onHappyAgentState) {
+      this._unsubscribeAgentState = window.browserControlManager.onHappyAgentState((data) => {
+        this._handleAgentStateUpdate(data);
+      });
+    }
+    // Web 版本
+    else if (window.apiAdapter?.on) {
+      this._agentStateHandler = (data) => this._handleAgentStateUpdate(data);
+      window.apiAdapter.on('happy:agentState', this._agentStateHandler);
+    }
+  }
+  
+  /**
+   * 处理 agentState 更新
+   * @param {Object} data agentState 数据
+   * @private
+   */
+  _handleAgentStateUpdate(data) {
+    if (!data) return;
+    
+    const { agentState, version } = data;
+    
+    // 检查版本是否更新
+    if (version && version <= this.agentStateVersion) {
+      return;
+    }
+    
+    console.log('[HappyMessageHandler] AgentState updated:', {
+      version,
+      hasRequests: !!agentState?.requests,
+      requestCount: agentState?.requests ? Object.keys(agentState.requests).length : 0
+    });
+    
+    this.agentState = agentState;
+    this.agentStateVersion = version || 0;
+    
+    // 如果有新的权限请求，立即通过 reducer 处理
+    if (agentState?.requests && Object.keys(agentState.requests).length > 0) {
+      this._processAgentState();
+    }
+  }
+  
+  /**
+   * 处理 agentState（权限请求）
+   * 通过 reducer 处理并生成权限确认消息
+   * @private
+   */
+  _processAgentState() {
+    if (!this.reducerState || !this.agentState) return;
+    
+    // 通过 Reducer 处理 agentState（不传入新消息，只处理 agentState）
+    const result = window.MessageReducer.reducer(
+      this.reducerState,
+      [],  // 空消息数组
+      this.agentState
+    );
+    
+    // 处理结果
+    if (result.messages && result.messages.length > 0) {
+      console.log(`[HappyMessageHandler] AgentState produced ${result.messages.length} messages`);
+      
+      for (const message of result.messages) {
+        this.dispatchMessage(message);
+      }
+    }
   }
 
   /**
@@ -71,11 +151,11 @@ class HappyMessageHandler {
       return;
     }
 
-    // 通过 Reducer 处理
+    // 通过 Reducer 处理（传入当前 agentState 以处理权限请求）
     const result = window.MessageReducer.reducer(
       this.reducerState, 
       normalizedMessages,
-      null // agentState - 暂不传入
+      this.agentState  // 传入 agentState 以处理权限请求
     );
 
     // 处理结果
@@ -118,11 +198,11 @@ class HappyMessageHandler {
       return;
     }
 
-    // 通过 Reducer 处理
+    // 通过 Reducer 处理（传入当前 agentState 以处理权限请求）
     const result = window.MessageReducer.reducer(
       this.reducerState,
       normalizedMessages,
-      null
+      this.agentState  // 传入 agentState 以处理权限请求
     );
 
     // 获取所有消息并分发
@@ -241,6 +321,8 @@ class HappyMessageHandler {
     if (this.reducerState && window.MessageReducer) {
       window.MessageReducer.resetReducer(this.reducerState);
     }
+    // 重置 agentState（但不重置版本，避免重新处理旧的权限请求）
+    this.agentState = null;
   }
 
   /**
@@ -260,6 +342,32 @@ class HappyMessageHandler {
       return [];
     }
     return window.MessageReducer.getAllMessages(this.reducerState);
+  }
+  
+  /**
+   * 获取当前 agentState
+   * @returns {Object|null}
+   */
+  getAgentState() {
+    return this.agentState;
+  }
+  
+  /**
+   * 销毁模块，取消订阅
+   */
+  destroy() {
+    // 取消 agentState 订阅
+    if (this._unsubscribeAgentState) {
+      this._unsubscribeAgentState();
+      this._unsubscribeAgentState = null;
+    }
+    if (this._agentStateHandler && window.apiAdapter?.off) {
+      window.apiAdapter.off('happy:agentState', this._agentStateHandler);
+      this._agentStateHandler = null;
+    }
+    
+    // 清除超时定时器
+    this.clearStatusTimeout();
   }
 }
 

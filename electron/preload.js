@@ -457,6 +457,17 @@ contextBridge.exposeInMainWorld('browserControlManager', {
     ipcRenderer.on('happy:messagesRestored', handler);
     return () => ipcRenderer.removeListener('happy:messagesRestored', handler);
   },
+  
+  /**
+   * 监听 agentState 更新事件（权限请求）
+   * @param {Function} callback - 回调函数 (data: { sessionId, agentState, version, hasNewRequests })
+   * @returns {Function} 取消监听的函数
+   */
+  onHappyAgentState: (callback) => {
+    const handler = (event, data) => callback(data);
+    ipcRenderer.on('happy:agentState', handler);
+    return () => ipcRenderer.removeListener('happy:agentState', handler);
+  },
 
   // ============ 权限操作 API ============
   

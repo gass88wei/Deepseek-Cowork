@@ -120,6 +120,7 @@ class WebSocketClient {
             'happy:secretChanged',
             'happy:workDirSwitched',
             'happy:initialized',
+            'happy:agentState',    // agentState 更新事件（权限请求）
             'daemon:statusChanged',
             'daemon:startProgress',
             // session 状态更新事件
