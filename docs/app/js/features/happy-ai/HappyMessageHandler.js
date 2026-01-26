@@ -204,7 +204,7 @@ class HappyMessageHandler {
     const abortBtn = this.app?.aiAbortBtn || document.getElementById('ai-abort-btn');
     if (!abortBtn) return;
     
-    // 仅在 processing 或 thinking 状态时显示中止按钮
+    // 在 processing、thinking 或 waiting 状态时显示中止按钮
     const showAbort = status === 'processing' || status === 'thinking' || status === 'waiting';
     abortBtn.style.display = showAbort ? 'flex' : 'none';
   }

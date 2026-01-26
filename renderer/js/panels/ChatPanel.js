@@ -54,6 +54,9 @@ class ChatPanel {
     this.typewriterText = '';  // 原始文本（从 i18n 获取）
     this.typewriterPlayed = false;  // 是否已播放过打字机效果
     
+    // 中止状态（防重复点击）
+    this.isAborting = false;
+    
     // DOM 元素
     this.elements = {};
   }
@@ -386,7 +389,7 @@ class ChatPanel {
         e.preventDefault();
         this.sendAIMessage();
       }
-      if (e.key === 'Escape' && this.happyEventStatus === 'processing') {
+      if (e.key === 'Escape' && ['processing', 'thinking', 'waiting'].includes(this.happyEventStatus) && !this.isAborting) {
         e.preventDefault();
         this.abortAISession();
       }
@@ -730,18 +733,24 @@ class ChatPanel {
    * 中止 AI 会话
    */
   async abortAISession() {
-    if (this.happyEventStatus !== 'processing' && this.happyEventStatus !== 'thinking') {
+    if (!['processing', 'thinking', 'waiting'].includes(this.happyEventStatus)) {
       return;
     }
+    
+    // 防重复点击
+    if (this.isAborting) return;
+    this.isAborting = true;
     
     try {
       const sessionId = this.currentSessionId || this.app?.currentSessionId;
       if (sessionId) {
-        await window.browserControlManager?.abortAISession?.(sessionId);
+        await window.browserControlManager?.abortSession?.(sessionId);
       }
       this.updateHappyEventStatus('ready');
     } catch (error) {
       console.error('[ChatPanel] Failed to abort session:', error);
+    } finally {
+      this.isAborting = false;
     }
   }
 

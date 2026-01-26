@@ -133,6 +133,9 @@ class BrowserControlManagerApp {
     // Happy AI 事件状态
     this.happyEventStatus = 'idle';
     
+    // 中止状态（防重复点击）
+    this.isAborting = false;
+    
     // 工具卡片计时器管理
     this.toolTimers = {};
     
@@ -1223,9 +1226,13 @@ class BrowserControlManagerApp {
    * 中止 AI 会话
    */
   async abortAISession() {
-    if (this.happyEventStatus !== 'processing' && this.happyEventStatus !== 'thinking') {
+    if (!['processing', 'thinking', 'waiting'].includes(this.happyEventStatus)) {
       return;
     }
+    
+    // 防重复点击
+    if (this.isAborting) return;
+    this.isAborting = true;
     
     const t = typeof I18nManager !== 'undefined' ? I18nManager.t.bind(I18nManager) : (k) => k;
     
@@ -1255,6 +1262,7 @@ class BrowserControlManagerApp {
       if (this.aiAbortBtn) {
         this.aiAbortBtn.classList.remove('aborting');
       }
+      this.isAborting = false;
     }
   }
 
