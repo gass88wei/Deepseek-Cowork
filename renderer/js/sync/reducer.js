@@ -444,19 +444,27 @@ function reducer(state, messages, agentState) {
           message.tool.result = c.content;
           message.tool.completedAt = msg.createdAt;
 
-          // 更新权限数据
+          // 更新权限数据（参考 happy 原版：保留现有的 decision 字段）
           if (c.permissions) {
             if (message.tool.permission) {
-              message.tool.permission.status = c.permissions.result === 'approved' ? 'approved' : 'denied';
-              message.tool.permission.date = c.permissions.date;
-              message.tool.permission.mode = c.permissions.mode;
-              message.tool.permission.decision = c.permissions.decision;
+              // 保留现有的 decision 如果新数据没有提供
+              const existingDecision = message.tool.permission.decision;
+              message.tool.permission = {
+                ...message.tool.permission,
+                id: c.tool_use_id,
+                status: c.permissions.result === 'approved' ? 'approved' : 'denied',
+                date: c.permissions.date,
+                mode: c.permissions.mode,
+                allowedTools: c.permissions.allowedTools,
+                decision: c.permissions.decision || existingDecision
+              };
             } else {
               message.tool.permission = {
                 id: c.tool_use_id,
                 status: c.permissions.result === 'approved' ? 'approved' : 'denied',
                 date: c.permissions.date,
                 mode: c.permissions.mode,
+                allowedTools: c.permissions.allowedTools,
                 decision: c.permissions.decision
               };
             }

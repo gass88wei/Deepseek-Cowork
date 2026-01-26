@@ -984,8 +984,9 @@ function setupIpcHandlers() {
           if (restartResult.success) {
             console.log('[saveSecret] Hot account switch successful, reconnecting HappyClient...');
             // 重新连接 HappyClient（等待连接完成，确保消息功能可用）
+            // 账户切换后使用自动选择（会选择 createAllSessions 设置的 currentSession）
             try {
-              const connectResult = await connectHappyClient('main');
+              const connectResult = await connectHappyClient();
               if (!connectResult.success) {
                 console.warn('[saveSecret] HappyClient reconnection failed:', connectResult.error);
               }
@@ -2079,8 +2080,8 @@ async function initializeHappyService() {
       // 设置 HappyService 事件转发到渲染进程
       setupHappyServiceEventForwarding();
       
-      // 连接 HappyClient 到 Session（异步，不阻塞）
-      connectHappyClient('main').catch(err => {
+      // 连接 HappyClient 到 Session（异步，不阻塞，自动选择 currentSession）
+      connectHappyClient().catch(err => {
         console.error('HappyClient connection failed:', err.message);
       });
       
@@ -2175,8 +2176,8 @@ async function tryReinitializeHappyService() {
       // 设置事件转发（如果尚未设置）
       setupHappyServiceEventForwarding();
       
-      // 连接 HappyClient
-      connectHappyClient('main').catch(err => {
+      // 连接 HappyClient（自动选择 currentSession）
+      connectHappyClient().catch(err => {
         console.error('[tryReinitializeHappyService] HappyClient connection failed:', err.message);
       });
       
@@ -2238,11 +2239,13 @@ function setupHappyServiceEventForwarding() {
 
 /**
  * 连接 HappyClient 到指定 Session
- * @param {string} sessionName Session 名称
+ * @param {string} sessionName Session 名称（如果不传，自动使用 currentSession）
  */
-async function connectHappyClient(sessionName = 'main') {
+async function connectHappyClient(sessionName = null) {
   try {
-    console.log(`Connecting HappyClient to session: ${sessionName}`);
+    // 如果未指定 sessionName，从 SessionManager 获取当前 session
+    const actualSessionName = sessionName || HappyService.sessionManager?.getCurrentSessionName() || 'main';
+    console.log(`Connecting HappyClient to session: ${actualSessionName} (requested: ${sessionName || 'auto'})`);
     
     // 计算 anonId 用于账户变更检测
     let anonId = null;
@@ -2260,7 +2263,7 @@ async function connectHappyClient(sessionName = 'main') {
       }
     }
     
-    const result = await HappyService.connectToSession(sessionName, { anonId });
+    const result = await HappyService.connectToSession(actualSessionName, { anonId });
     
     if (result.success) {
       console.log('HappyClient connected successfully');

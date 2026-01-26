@@ -433,10 +433,29 @@ function normalizeMessages(rawMessages, options = {}) {
       continue;
     }
     
-    // 为没有 id 的用户消息生成稳定的 ID（基于内容和时间戳）
+    // 为消息生成唯一 ID
+    // 重要：流式消息（codex 格式）可能使用相同的 messageId，需要为每条消息生成唯一 ID
+    // 否则 reducer 去重会跳过后续消息，导致只显示第一条
     let id;
-    if (raw.messageId || raw.id) {
-      id = raw.messageId || raw.id;
+    const baseId = raw.messageId || raw.id;
+    const contentType = raw.content?.type;
+    
+    // 检查是否是流式消息（codex 格式或 output.assistant），需要为每条生成唯一 ID
+    const isStreamingMessage = contentType === 'codex' || 
+                               (contentType === 'output' && raw.content?.data?.type === 'assistant');
+    
+    if (isStreamingMessage && baseId) {
+      // 流式消息：使用 baseId + 时间戳 + 随机数，确保每条消息有唯一 ID
+      id = `${baseId}-${Date.now()}-${Math.random().toString(36).substr(2, 6)}`;
+      console.log('[Normalizer] Streaming message detected, generated unique ID:', {
+        baseId,
+        newId: id,
+        contentType,
+        dataType: raw.content?.data?.type
+      });
+    } else if (baseId) {
+      // 非流式消息：直接使用原始 ID（保持去重能力）
+      id = baseId;
     } else if (raw.role === 'user' && raw.text) {
       // 为乐观更新的用户消息生成稳定 ID，避免重复
       id = `user-${raw.timestamp || raw.createdAt || ''}-${raw.text.substring(0, 20).replace(/\s/g, '_')}`;
