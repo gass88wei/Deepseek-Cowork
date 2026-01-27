@@ -293,7 +293,8 @@ try {
             "cli.mjs",
             "lib",
             "server",
-            "config"
+            "config",
+            "deploy"
         ],
         keywords: [
             "deepseek",
