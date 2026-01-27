@@ -434,78 +434,96 @@ class ServerManager {
       this.expressApp.use(express.json({ limit: '100mb' }));
       this.expressApp.use(express.urlencoded({ extended: true, limit: '100mb' }));
       
-      // 5. Import and create server instance
-      // Try multiple paths to find the server module
-      const possiblePaths = [
-        path.join(global.rootDir, 'server', 'modules', 'browser', 'index.js'),
-        path.join(__dirname, '../../server/modules/browser/index.js'), // Fallback for dev
-      ];
+      // 5. 使用 modulesManager 统一加载所有模块
+      this.addLog('info', 'Loading modules via modulesManager...');
       
-      // In production, also try asar path
-      if (!this.isDev && this.appPath) {
-        possiblePaths.push(path.join(this.appPath, 'server', 'modules', 'browser', 'index.js'));
-        if (process.resourcesPath) {
-          possiblePaths.push(
-            path.join(process.resourcesPath, 'app', 'server', 'modules', 'browser', 'index.js'),
-            path.join(process.resourcesPath, 'app.asar', 'server', 'modules', 'browser', 'index.js')
-          );
+      // 获取用户设置的工作目录
+      let workspaceDir = global.rootDir || process.cwd();
+      try {
+        const userSettings = require('../../lib/user-settings');
+        const customDir = userSettings.get('happy.workspaceDir');
+        if (customDir && fs.existsSync(customDir)) {
+          workspaceDir = customDir;
+        } else {
+          const defaultDir = userSettings.getDefaultWorkspaceDir();
+          if (defaultDir) {
+            workspaceDir = defaultDir;
+            if (!fs.existsSync(workspaceDir)) {
+              fs.mkdirSync(workspaceDir, { recursive: true });
+            }
+          }
         }
+      } catch (e) {
+        this.addLog('debug', `Using default workspace: ${workspaceDir}`);
       }
       
-      // Find the first existing path
-      let browserControlModulePath = null;
-      for (const testPath of possiblePaths) {
-        if (fs.existsSync(testPath)) {
-          browserControlModulePath = testPath;
-          break;
-        }
-      }
+      // 使用统一的模块管理器
+      const modulesManager = require('../../server/modulesManager');
       
-      if (!browserControlModulePath) {
-        this.addLog('error', `Browser control module not found. Tried paths:`);
-        possiblePaths.forEach(p => this.addLog('error', `  - ${p} (exists: ${fs.existsSync(p)})`));
-        throw new Error(`Browser control module not found. App path: ${this.appPath}, Root dir: ${global.rootDir}, IsDev: ${this.isDev}`);
-      }
+      // 重置管理器状态
+      modulesManager.reset();
       
-      this.addLog('info', `Using server module: ${browserControlModulePath}`);
+      // 加载所有模块配置
+      modulesManager.loadAllConfigs();
       
-      // Clear module cache (ensure new instance on restart)
-      this.clearModuleCache(browserControlModulePath);
-      
-      const { setupBrowserControlService } = require(browserControlModulePath);
-      
+      // 构建服务器配置
       const serverConfig = this.getDefaultServerConfig();
-      this.browserControlServer = setupBrowserControlService({
-        browserControlConfig: serverConfig,
-        serverConfig: {
+      const moduleConfig = {
+        server: {
           host: this.config.host,
           port: this.config.port
+        },
+        browserControl: serverConfig,
+        explorer: {
+          enabled: true,
+          watchDirs: [{
+            name: 'workspace',
+            path: workspaceDir,
+            description: 'Workspace directory'
+          }],
+          mode: 'internal-only',
+          logging: { level: 'INFO' }
+        },
+        memory: {
+          enabled: true
+        }
+      };
+      
+      // 初始化所有模块
+      modulesManager.initModules(moduleConfig, {
+        pathResolver: this.createElectronPathResolver(),
+        clearCache: true,
+        runtimeContext: {
+          workspaceDir: workspaceDir,
+          watchDirs: [{
+            name: 'workspace',
+            path: workspaceDir,
+            description: 'Workspace directory'
+          }],
+          memoriesDir: path.join(app.getPath('userData'), 'memories')
         }
       });
       
-      // 6. Initialize server
-      this.addLog('info', 'Initializing server components...');
-      await this.browserControlServer.init();
-      
-      // 7. Setup routes
-      this.addLog('info', 'Setting up routes...');
-      this.browserControlServer.setupRoutes(this.expressApp);
-      
-      // 8. Start HTTP server
+      // 6. Start HTTP server first
       await this.startHttpServer();
       
-      // 9. Start WebSocket server
-      this.addLog('info', 'Starting WebSocket server...');
-      await this.browserControlServer.start();
+      // 7. 启动所有模块
+      this.addLog('info', 'Starting all modules...');
+      await modulesManager.bootstrapModules({
+        app: this.expressApp,
+        config: moduleConfig
+      });
       
-      // 10. Initialize and start Explorer service
-      await this.initExplorerService();
+      // 8. 获取服务实例引用（保持兼容性）
+      this.browserControlServer = modulesManager.getModule('browser');
+      this.explorerService = modulesManager.getModule('explorer');
+      this.memoryService = modulesManager.getModule('memory');
       
-      // 11. Initialize and start Memory service
-      await this.initMemoryModule();
-      
-      // 12. Setup server event bridge
+      // 9. Setup server event bridge
       this.setupEventBridge();
+      
+      // 10. Setup explorer and memory event forwarding
+      this._setupModuleEventForwarding();
       
       this.isRunning = true;
       
@@ -583,7 +601,34 @@ class ServerManager {
   }
 
   /**
+   * 设置模块事件转发到渲染进程
+   * @private
+   */
+  _setupModuleEventForwarding() {
+    // Explorer 事件转发
+    if (this.explorerService) {
+      this.explorerService.on('file_change', (data) => {
+        this.notifyRenderer('explorer-file-change', data);
+      });
+      
+      this.explorerService.on('structure_update', (data) => {
+        this.notifyRenderer('explorer-structure-update', data);
+      });
+    }
+    
+    // Memory 事件转发
+    if (this.memoryService) {
+      this.memoryService.on('memory:saved', (data) => {
+        this.notifyRenderer('memory-saved', data);
+      });
+    }
+    
+    this.addLog('info', 'Module event forwarding configured');
+  }
+
+  /**
    * 初始化并启动 Explorer 服务
+   * @deprecated 已被 modulesManager 替代，保留用于兼容性
    * @returns {Promise<void>}
    */
   async initExplorerService() {
@@ -707,6 +752,7 @@ class ServerManager {
 
   /**
    * 初始化并启动 Memory 服务
+   * @deprecated 已被 modulesManager 替代，保留用于兼容性
    * @returns {Promise<void>}
    */
   async initMemoryModule() {
@@ -824,6 +870,53 @@ class ServerManager {
   }
 
   /**
+   * 创建 Electron 专用的模块路径解析器
+   * 处理开发模式和生产模式（asar 包）的路径差异
+   * @returns {Function} 路径解析器函数
+   */
+  createElectronPathResolver() {
+    const self = this;
+    
+    return (moduleConfig) => {
+      // 用户模块：从用户数据目录加载
+      if (moduleConfig.source === 'user') {
+        const { getUserModulesDir } = require('../../server/utils/userDataDir');
+        return path.resolve(getUserModulesDir(), moduleConfig.module);
+      }
+      
+      // 内置模块：尝试多个路径
+      const moduleName = moduleConfig.module.replace('./modules/', '');
+      const possiblePaths = [
+        path.join(global.rootDir, 'server', 'modules', moduleName, 'index.js'),
+        path.join(__dirname, '../../server/modules', moduleName, 'index.js'),
+      ];
+      
+      // 生产模式：添加 asar 路径
+      if (!self.isDev && self.appPath) {
+        possiblePaths.push(path.join(self.appPath, 'server', 'modules', moduleName, 'index.js'));
+        if (process.resourcesPath) {
+          possiblePaths.push(
+            path.join(process.resourcesPath, 'app', 'server', 'modules', moduleName, 'index.js'),
+            path.join(process.resourcesPath, 'app.asar', 'server', 'modules', moduleName, 'index.js')
+          );
+        }
+      }
+      
+      // 查找第一个存在的路径
+      for (const testPath of possiblePaths) {
+        if (fs.existsSync(testPath)) {
+          return testPath;
+        }
+      }
+      
+      // 如果找不到，抛出错误
+      self.addLog('error', `Module ${moduleConfig.name} not found. Tried paths:`);
+      possiblePaths.forEach(p => self.addLog('error', `  - ${p} (exists: ${fs.existsSync(p)})`));
+      throw new Error(`Module not found: ${moduleConfig.name}`);
+    };
+  }
+
+  /**
    * 等待服务器就绪
    * @param {number} timeout - 超时时间（毫秒）
    * @param {number} interval - 检查间隔（毫秒）
@@ -878,37 +971,21 @@ class ServerManager {
    * 清理服务器资源
    */
   async cleanup() {
-    // 1. 停止 browserControlServer（包括 WebSocket）
-    if (this.browserControlServer) {
-      try {
-        await this.browserControlServer.stop();
-      } catch (error) {
-        this.addLog('warn', `Error stopping browserControlServer: ${error.message}`);
-      }
-      this.browserControlServer = null;
+    // 1. 使用 modulesManager 统一关闭所有模块
+    try {
+      const modulesManager = require('../../server/modulesManager');
+      await modulesManager.shutdownModules();
+      this.addLog('info', 'All modules stopped via modulesManager');
+    } catch (error) {
+      this.addLog('warn', `Error stopping modules: ${error.message}`);
     }
     
-    // 2. 停止 Explorer 服务
-    if (this.explorerService) {
-      try {
-        await this.explorerService.stop();
-      } catch (error) {
-        this.addLog('warn', `Error stopping Explorer service: ${error.message}`);
-      }
-      this.explorerService = null;
-    }
+    // 清空服务实例引用
+    this.browserControlServer = null;
+    this.explorerService = null;
+    this.memoryService = null;
     
-    // 3. 停止 Memory 服务
-    if (this.memoryService) {
-      try {
-        await this.memoryService.stop();
-      } catch (error) {
-        this.addLog('warn', `Error stopping Memory service: ${error.message}`);
-      }
-      this.memoryService = null;
-    }
-    
-    // 4. Close HTTP server
+    // 2. Close HTTP server
     if (this.httpServer) {
       await new Promise((resolve) => {
         this.httpServer.close((err) => {
@@ -921,7 +998,7 @@ class ServerManager {
       this.httpServer = null;
     }
     
-    // 4. Clean up Express app
+    // 3. Clean up Express app
     this.expressApp = null;
   }
 

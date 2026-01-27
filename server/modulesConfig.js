@@ -5,7 +5,9 @@
  * 由 modulesManager.js 加载和管理
  */
 
+const path = require('path');
 const logger = require('./utils/logger');
+const { getUserDataDir } = require('./utils/userDataDir');
 
 /**
  * 内置模块配置列表
@@ -25,7 +27,7 @@ const modules = [
         },
         
         // 生成初始化参数
-        getOptions: (config) => ({
+        getOptions: (config, runtimeContext) => ({
             browserControlConfig: config.browserControl,
             serverConfig: {
                 host: config.server.host,
@@ -67,15 +69,24 @@ const modules = [
             emitsEvents: true
         },
         
-        // 生成初始化参数
-        getOptions: (config) => ({
-            explorerConfig: config.explorer,
-            serverConfig: {
-                host: config.server.host,
-                port: config.server.port
-            },
-            appDir: global.rootDir || process.cwd()
-        }),
+        // 生成初始化参数（支持 runtimeContext）
+        getOptions: (config, runtimeContext) => {
+            // 使用 runtimeContext 中的 workspaceDir，如果没有则使用默认值
+            const workspaceDir = runtimeContext?.workspaceDir || global.rootDir || process.cwd();
+            
+            return {
+                explorerConfig: {
+                    ...config.explorer,
+                    // 如果 runtimeContext 提供了 watchDirs，使用它
+                    watchDirs: runtimeContext?.watchDirs || config.explorer?.watchDirs
+                },
+                serverConfig: {
+                    host: config.server.host,
+                    port: config.server.port
+                },
+                appDir: workspaceDir
+            };
+        },
         
         // 事件监听配置
         events: {
@@ -93,10 +104,54 @@ const modules = [
                 logger.debug(`文件变化: ${data.type} - ${data.path}`);
             }
         }
-    }
+    },
     
-    // memory 模块目前在 server/bootstrap.js 中未被加载
-    // 如需启用，可在此添加配置
+    {
+        // Memory 记忆服务
+        name: 'memory',
+        module: './modules/memory',
+        setupFunction: 'setupMemoryService',
+        enabled: true,
+        
+        // 启用条件（通过配置控制）
+        enabledCondition: (config) => config.memory?.enabled !== false,
+        
+        // 服务特性
+        features: {
+            hasRoutes: true,
+            emitsEvents: true
+        },
+        
+        // 生成初始化参数（支持 runtimeContext）
+        getOptions: (config, runtimeContext) => {
+            // 使用 runtimeContext 中的 memoriesDir，如果没有则使用默认值
+            const memoriesDir = runtimeContext?.memoriesDir || path.join(getUserDataDir(), 'memories');
+            
+            return {
+                serverConfig: {
+                    host: config.server.host,
+                    port: config.server.port
+                },
+                dataDir: memoriesDir
+            };
+        },
+        
+        // 事件监听配置
+        events: {
+            started: ({ serverInfo }) => {
+                logger.info('Memory 服务已启动');
+            },
+            stopped: () => {
+                logger.info('Memory 服务已停止');
+            },
+            error: ({ type, error }) => {
+                logger.error(`Memory 服务错误 (${type}):`, error);
+            },
+            'memory:saved': ({ sessionId, memoryName, messageCount }) => {
+                logger.info(`Memory 已保存: ${memoryName} (${messageCount} 条消息)`);
+            }
+        }
+    }
 ];
 
 module.exports = {

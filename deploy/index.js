@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 
 /**
- * Browser Control Manager Deployer
+ * Deepseek Cowork Deployer
  * 
  * Features:
  * - Deploy CLAUDE.md and .claude/skills/browser-control to work directories
+ * - Deploy user server modules to user data directory
  * - Support deploy/update/backup/reset/status operations
  * - Support multi-language deployment (--lang en/zh)
  * 
@@ -12,23 +13,34 @@
  * node deploy [command] [--target name] [--lang en|zh]
  * 
  * Commands:
- *   deploy   Deploy config to work directories
- *   update   Update references docs
- *   backup   Backup current config
- *   reset    Reset config
- *   status   Check config status
+ *   deploy               Deploy config to work directories
+ *   update               Update references docs
+ *   backup               Backup current config
+ *   reset                Reset config
+ *   status               Check config status
+ *   module <name>        Deploy server module to user data directory
+ *   module --list        List available server modules
+ *   module --status      Check deployed modules status
+ *   module --remove <n>  Remove deployed module
  */
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { execSync } = require('child_process');
 
 // Path constants
 const DEPLOY_DIR = __dirname;
 const BCM_ROOT = path.dirname(DEPLOY_DIR);
-const TEMPLATES_DIR = path.join(DEPLOY_DIR, 'templates');
+const SKILLS_DIR = path.join(DEPLOY_DIR, 'skills');
+const USER_SERVER_MODULES_DIR = path.join(DEPLOY_DIR, 'user-server-modules');
 const SERVER_DOCS_DIR = path.join(BCM_ROOT, 'server', 'docs');
 const HAPPY_CONFIG_PATH = path.join(BCM_ROOT, '..', 'happy-service', 'happy-config.json');
+
+// User data directory constants
+const APP_NAME = 'deepseek-cowork';
+const USER_MODULES_DIR_NAME = 'user-server-modules';
+const USER_MODULES_CONFIG_NAME = 'userServerModulesConfig.js';
 
 // Skill directory names
 const SKILL_NAME = 'browser-control';
@@ -81,7 +93,21 @@ const MESSAGES = {
         memoryIndexUsage: 'Usage Instructions',
         memoryIndexUsage1: '1. Find related memory from index table',
         memoryIndexUsage2: '2. Read `active/{memoryId}/summary.md` for details',
-        memoryIndexUsage3: '3. Read `active/{memoryId}/conversation.md` for original conversation'
+        memoryIndexUsage3: '3. Read `active/{memoryId}/conversation.md` for original conversation',
+        // Server module messages
+        moduleListTitle: 'Available Server Modules',
+        moduleNotFound: (name) => `Module not found: ${name}`,
+        moduleSourceNotFound: (path) => `Module source directory not found: ${path}`,
+        moduleAlreadyDeployed: (name) => `Module already deployed: ${name}`,
+        moduleDeploying: (name) => `Deploying module: ${name}`,
+        moduleDeployComplete: (name) => `Module deployed successfully: ${name}`,
+        moduleConfigUpdated: 'Module config updated',
+        moduleRemoved: (name) => `Module removed: ${name}`,
+        moduleNotDeployed: (name) => `Module not deployed: ${name}`,
+        moduleStatusTitle: 'Deployed Server Modules',
+        noModulesDeployed: 'No modules deployed',
+        userDataDir: (path) => `User data directory: ${path}`,
+        restartHint: 'Please restart the service to load the new module'
     },
     zh: {
         loadedWorkDirs: (count) => `加载了 ${count} 个工作目录配置`,
@@ -122,7 +148,21 @@ const MESSAGES = {
         memoryIndexUsage: '使用说明',
         memoryIndexUsage1: '1. 根据索引表找到相关记忆',
         memoryIndexUsage2: '2. 读取对应记忆的 `active/{记忆ID}/summary.md` 了解详情',
-        memoryIndexUsage3: '3. 如需原始对话，读取 `active/{记忆ID}/conversation.md`'
+        memoryIndexUsage3: '3. 如需原始对话，读取 `active/{记忆ID}/conversation.md`',
+        // Server module messages
+        moduleListTitle: '可用服务器模块',
+        moduleNotFound: (name) => `模块不存在: ${name}`,
+        moduleSourceNotFound: (path) => `模块源目录不存在: ${path}`,
+        moduleAlreadyDeployed: (name) => `模块已部署: ${name}`,
+        moduleDeploying: (name) => `正在部署模块: ${name}`,
+        moduleDeployComplete: (name) => `模块部署成功: ${name}`,
+        moduleConfigUpdated: '模块配置已更新',
+        moduleRemoved: (name) => `模块已移除: ${name}`,
+        moduleNotDeployed: (name) => `模块未部署: ${name}`,
+        moduleStatusTitle: '已部署的服务器模块',
+        noModulesDeployed: '暂无已部署的模块',
+        userDataDir: (path) => `用户数据目录: ${path}`,
+        restartHint: '请重启服务以加载新模块'
     }
 };
 
@@ -136,14 +176,14 @@ class BrowserControlDeployer {
 
     /**
      * Get source directory based on language
-     * en: templates/js-skills/
-     * zh: templates/i18n/zh/js-skills/
+     * en: skills/js-skills/
+     * zh: skills/i18n/zh/js-skills/
      */
     getSourceDir() {
         if (this.lang === 'zh') {
-            return path.join(TEMPLATES_DIR, 'i18n', 'zh', 'js-skills');
+            return path.join(SKILLS_DIR, 'i18n', 'zh', 'js-skills');
         }
-        return path.join(TEMPLATES_DIR, 'js-skills');
+        return path.join(SKILLS_DIR, 'js-skills');
     }
 
     /**
@@ -520,6 +560,321 @@ ${m.memoryIndexUsage3}
     }
 }
 
+/**
+ * Get user data directory (cross-platform)
+ */
+function getUserDataDir() {
+    const platform = process.platform;
+    let dataDir;
+    
+    if (platform === 'win32') {
+        dataDir = path.join(process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming'), APP_NAME);
+    } else if (platform === 'darwin') {
+        dataDir = path.join(os.homedir(), 'Library', 'Application Support', APP_NAME);
+    } else {
+        dataDir = path.join(process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config'), APP_NAME);
+    }
+    
+    return dataDir;
+}
+
+/**
+ * Server Module Deployer
+ * Deploy user server modules to user data directory
+ */
+class ServerModuleDeployer {
+    constructor(lang = 'en') {
+        this.lang = lang;
+        this.msg = MESSAGES[lang] || MESSAGES.en;
+        this.userDataDir = getUserDataDir();
+        this.userModulesDir = path.join(this.userDataDir, USER_MODULES_DIR_NAME);
+        this.userConfigPath = path.join(this.userDataDir, USER_MODULES_CONFIG_NAME);
+    }
+
+    /**
+     * Log output
+     */
+    log(level, message, data = null) {
+        const prefix = {
+            info: '📋',
+            success: '✅',
+            warn: '⚠️',
+            error: '❌'
+        }[level] || '📋';
+
+        console.log(`${prefix} ${message}`);
+        if (data) {
+            console.log('   ', data);
+        }
+    }
+
+    /**
+     * Ensure directory exists
+     */
+    ensureDir(dirPath) {
+        if (!fs.existsSync(dirPath)) {
+            fs.mkdirSync(dirPath, { recursive: true });
+        }
+    }
+
+    /**
+     * Recursively copy directory
+     */
+    copyDirRecursive(src, dest) {
+        this.ensureDir(dest);
+        const entries = fs.readdirSync(src, { withFileTypes: true });
+
+        for (const entry of entries) {
+            const srcPath = path.join(src, entry.name);
+            const destPath = path.join(dest, entry.name);
+
+            if (entry.isDirectory()) {
+                this.copyDirRecursive(srcPath, destPath);
+            } else {
+                fs.copyFileSync(srcPath, destPath);
+            }
+        }
+    }
+
+    /**
+     * List available module templates
+     */
+    listModules() {
+        console.log(`\n=== ${this.msg.moduleListTitle} ===\n`);
+
+        if (!fs.existsSync(USER_SERVER_MODULES_DIR)) {
+            this.log('warn', this.msg.moduleSourceNotFound(USER_SERVER_MODULES_DIR));
+            return;
+        }
+
+        const modules = fs.readdirSync(USER_SERVER_MODULES_DIR, { withFileTypes: true })
+            .filter(entry => entry.isDirectory() && !entry.name.startsWith('_'))
+            .map(entry => entry.name);
+
+        if (modules.length === 0) {
+            this.log('info', 'No modules available');
+            return;
+        }
+
+        for (const moduleName of modules) {
+            const modulePath = path.join(USER_SERVER_MODULES_DIR, moduleName);
+            const readmePath = path.join(modulePath, 'README.md');
+            const indexPath = path.join(modulePath, 'index.js');
+            
+            let description = '';
+            if (fs.existsSync(readmePath)) {
+                const content = fs.readFileSync(readmePath, 'utf8');
+                const firstLine = content.split('\n').find(line => line.trim() && !line.startsWith('#'));
+                if (firstLine) {
+                    description = firstLine.trim().substring(0, 60);
+                }
+            }
+
+            const hasIndex = fs.existsSync(indexPath) ? '✅' : '❌';
+            console.log(`  ${hasIndex} ${moduleName}`);
+            if (description) {
+                console.log(`     ${description}`);
+            }
+        }
+
+        console.log(`\n${this.msg.userDataDir(this.userDataDir)}\n`);
+    }
+
+    /**
+     * Deploy a module to user data directory
+     */
+    async deployModule(moduleName) {
+        const sourcePath = path.join(USER_SERVER_MODULES_DIR, moduleName);
+        const destPath = path.join(this.userModulesDir, moduleName);
+
+        // Check source exists
+        if (!fs.existsSync(sourcePath)) {
+            this.log('error', this.msg.moduleNotFound(moduleName));
+            return false;
+        }
+
+        // Check if already deployed
+        if (fs.existsSync(destPath)) {
+            this.log('warn', this.msg.moduleAlreadyDeployed(moduleName));
+            return false;
+        }
+
+        this.log('info', this.msg.moduleDeploying(moduleName));
+
+        // Ensure user data directory exists
+        this.ensureDir(this.userModulesDir);
+
+        // Copy module files
+        this.copyDirRecursive(sourcePath, destPath);
+
+        // Update config file
+        this.updateConfig(moduleName, 'add');
+
+        this.log('success', this.msg.moduleDeployComplete(moduleName));
+        this.log('info', this.msg.restartHint);
+        console.log(`\n${this.msg.userDataDir(this.userDataDir)}\n`);
+
+        return true;
+    }
+
+    /**
+     * Remove a deployed module
+     */
+    async removeModule(moduleName) {
+        const modulePath = path.join(this.userModulesDir, moduleName);
+
+        if (!fs.existsSync(modulePath)) {
+            this.log('error', this.msg.moduleNotDeployed(moduleName));
+            return false;
+        }
+
+        // Remove module directory
+        fs.rmSync(modulePath, { recursive: true, force: true });
+
+        // Update config file
+        this.updateConfig(moduleName, 'remove');
+
+        this.log('success', this.msg.moduleRemoved(moduleName));
+        this.log('info', this.msg.restartHint);
+
+        return true;
+    }
+
+    /**
+     * Show deployed modules status
+     */
+    moduleStatus() {
+        console.log(`\n=== ${this.msg.moduleStatusTitle} ===\n`);
+        console.log(`${this.msg.userDataDir(this.userDataDir)}\n`);
+
+        if (!fs.existsSync(this.userModulesDir)) {
+            this.log('info', this.msg.noModulesDeployed);
+            return;
+        }
+
+        const modules = fs.readdirSync(this.userModulesDir, { withFileTypes: true })
+            .filter(entry => entry.isDirectory())
+            .map(entry => entry.name);
+
+        if (modules.length === 0) {
+            this.log('info', this.msg.noModulesDeployed);
+            return;
+        }
+
+        // Read config to get enabled status
+        let configModules = {};
+        if (fs.existsSync(this.userConfigPath)) {
+            try {
+                // Clear require cache to get fresh config
+                delete require.cache[require.resolve(this.userConfigPath)];
+                const config = require(this.userConfigPath);
+                if (config.modules) {
+                    config.modules.forEach(m => {
+                        configModules[m.name] = m.enabled !== false;
+                    });
+                }
+            } catch (err) {
+                this.log('warn', `Failed to read config: ${err.message}`);
+            }
+        }
+
+        for (const moduleName of modules) {
+            const modulePath = path.join(this.userModulesDir, moduleName);
+            const indexPath = path.join(modulePath, 'index.js');
+            const hasIndex = fs.existsSync(indexPath);
+            const enabled = configModules[moduleName] !== false;
+            
+            const statusIcon = hasIndex ? (enabled ? '✅' : '⏸️') : '❌';
+            const statusText = hasIndex ? (enabled ? 'enabled' : 'disabled') : 'invalid';
+            
+            console.log(`  ${statusIcon} ${moduleName} (${statusText})`);
+        }
+
+        console.log('');
+    }
+
+    /**
+     * Update user modules config file
+     */
+    updateConfig(moduleName, action) {
+        this.ensureDir(this.userDataDir);
+
+        let config = { modules: [] };
+
+        // Read existing config
+        if (fs.existsSync(this.userConfigPath)) {
+            try {
+                delete require.cache[require.resolve(this.userConfigPath)];
+                config = require(this.userConfigPath);
+            } catch (err) {
+                // Config file may be corrupted, start fresh
+                config = { modules: [] };
+            }
+        }
+
+        if (!config.modules) {
+            config.modules = [];
+        }
+
+        if (action === 'add') {
+            // Check if module already in config
+            const existingIndex = config.modules.findIndex(m => m.name === moduleName);
+            if (existingIndex === -1) {
+                // Read module to get setup function name
+                const modulePath = path.join(this.userModulesDir, moduleName, 'index.js');
+                let setupFunction = `setup${this.toPascalCase(moduleName)}Service`;
+                
+                if (fs.existsSync(modulePath)) {
+                    const content = fs.readFileSync(modulePath, 'utf8');
+                    const match = content.match(/module\.exports\s*=\s*\{\s*(\w+)/);
+                    if (match) {
+                        setupFunction = match[1];
+                    }
+                }
+
+                config.modules.push({
+                    name: moduleName,
+                    module: `./${moduleName}`,
+                    setupFunction: setupFunction,
+                    enabled: true,
+                    features: {
+                        hasRoutes: true
+                    }
+                });
+            }
+        } else if (action === 'remove') {
+            config.modules = config.modules.filter(m => m.name !== moduleName);
+        }
+
+        // Write config file
+        const configContent = `/**
+ * User Server Modules Configuration
+ * Auto-generated by deploy script
+ * 
+ * You can manually edit this file to:
+ * - Enable/disable modules
+ * - Add custom module configurations
+ * - Override module options
+ */
+
+module.exports = ${JSON.stringify(config, null, 4).replace(/"(\w+)":/g, '$1:')};
+`;
+
+        fs.writeFileSync(this.userConfigPath, configContent, 'utf8');
+        this.log('success', this.msg.moduleConfigUpdated);
+    }
+
+    /**
+     * Convert string to PascalCase
+     */
+    toPascalCase(str) {
+        return str
+            .split('-')
+            .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+            .join('');
+    }
+}
+
 // CLI entry
 async function main() {
     const args = process.argv.slice(2);
@@ -542,9 +897,33 @@ async function main() {
         }
     }
 
-    const deployer = new BrowserControlDeployer(lang);
-
     try {
+        // Handle module command
+        if (command === 'module') {
+            const moduleDeployer = new ServerModuleDeployer(lang);
+            const moduleArg = args[1];
+
+            if (!moduleArg || moduleArg === '--list') {
+                moduleDeployer.listModules();
+            } else if (moduleArg === '--status') {
+                moduleDeployer.moduleStatus();
+            } else if (moduleArg === '--remove') {
+                const moduleName = args[2];
+                if (!moduleName) {
+                    console.error('\n❌ Please specify module name to remove\n');
+                    process.exit(1);
+                }
+                await moduleDeployer.removeModule(moduleName);
+            } else {
+                // Deploy module by name
+                await moduleDeployer.deployModule(moduleArg);
+            }
+            return;
+        }
+
+        // Handle skill deployment commands
+        const deployer = new BrowserControlDeployer(lang);
+
         switch (command) {
             case 'deploy':
                 await deployer.deploy(targetName);
@@ -580,17 +959,23 @@ async function main() {
 
 function showHelp() {
     console.log(`
-Browser Control Manager Deployer
+Deepseek Cowork Deployer
 
 Usage: node deploy [command] [options]
 
-Commands:
-  deploy              Deploy config to work directories
+Skill Commands (deploy to work directories):
+  deploy              Deploy CLAUDE.md and skills to work directories
   update              Update references docs
   backup              Backup current config
   reset               Reset config (backup first, then redeploy)
   status              Check config status (default)
-  help                Show help message
+
+Module Commands (deploy to user data directory):
+  module              List available server modules (same as --list)
+  module <name>       Deploy specified module to user data directory
+  module --list       List available server modules
+  module --status     Check deployed modules status
+  module --remove <n> Remove deployed module
 
 Options:
   --target <name>     Specify target work directory (by name)
@@ -598,12 +983,17 @@ Options:
   --no-backup         Skip backup when resetting
 
 Examples:
+  # Skill deployment
   node deploy deploy                    # Deploy to all work directories (English)
   node deploy deploy --lang zh          # Deploy to all work directories (Chinese)
   node deploy deploy --target main      # Deploy to 'main' work directory
-  node deploy update                    # Update all work directories' references
   node deploy status                    # Check deployment status
-  node deploy reset --no-backup         # Reset (without backup)
+
+  # Server module deployment
+  node deploy module                    # List available modules
+  node deploy module demo-module        # Deploy demo-module
+  node deploy module --status           # Check deployed modules
+  node deploy module --remove demo-module  # Remove demo-module
 `);
 }
 
@@ -612,4 +1002,4 @@ if (require.main === module) {
     main();
 }
 
-module.exports = { BrowserControlDeployer };
+module.exports = { BrowserControlDeployer, ServerModuleDeployer, getUserDataDir };

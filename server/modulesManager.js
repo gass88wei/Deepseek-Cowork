@@ -3,25 +3,47 @@
  * 
  * 负责管理服务模块的加载、初始化、启动和关闭
  * 支持内置模块和用户自定义模块
+ * 支持多种运行模式（server、CLI、Electron）
  */
 
 const path = require('path');
+const fs = require('fs');
 const logger = require('./utils/logger');
 const { 
     getUserModulesDir, 
     getUserModulesConfigPath, 
     userModulesConfigExists,
+    getUserDataDir,
     ensureDir
 } = require('./utils/userDataDir');
 
 // 存储已加载的模块实例
-const moduleInstances = {};
+let moduleInstances = {};
 
 // 存储合并后的模块配置
 let mergedModuleConfigs = [];
 
 // 存储模块启动顺序（用于逆序关闭）
 let bootOrder = [];
+
+// 存储运行时选项
+let runtimeOptions = {};
+
+/**
+ * 清理模块缓存
+ * @param {string} modulePath 模块路径
+ */
+function clearModuleCache(modulePath) {
+    try {
+        const resolvedPath = require.resolve(modulePath);
+        if (require.cache[resolvedPath]) {
+            delete require.cache[resolvedPath];
+            logger.debug(`已清理模块缓存: ${modulePath}`);
+        }
+    } catch (e) {
+        // 模块可能不在缓存中，忽略错误
+    }
+}
 
 /**
  * 加载内置模块配置
@@ -135,11 +157,11 @@ function getEnabledModules(config) {
 }
 
 /**
- * 解析模块路径
+ * 默认路径解析器
  * @param {Object} moduleConfig 模块配置
  * @returns {string} 绝对模块路径
  */
-function resolveModulePath(moduleConfig) {
+function defaultPathResolver(moduleConfig) {
     if (moduleConfig.source === 'user') {
         // 用户模块：相对于用户模块目录
         return path.resolve(getUserModulesDir(), moduleConfig.module);
@@ -150,17 +172,52 @@ function resolveModulePath(moduleConfig) {
 }
 
 /**
+ * 解析模块路径
+ * @param {Object} moduleConfig 模块配置
+ * @returns {string} 绝对模块路径
+ */
+function resolveModulePath(moduleConfig) {
+    // 使用自定义路径解析器或默认解析器
+    const resolver = runtimeOptions.pathResolver || defaultPathResolver;
+    return resolver(moduleConfig);
+}
+
+/**
+ * 重置管理器状态
+ * 用于在不同入口重新初始化时清理状态
+ */
+function reset() {
+    moduleInstances = {};
+    mergedModuleConfigs = [];
+    bootOrder = [];
+    runtimeOptions = {};
+    logger.debug('模块管理器状态已重置');
+}
+
+/**
  * 初始化所有模块
  * @param {Object} config 服务器配置对象
+ * @param {Object} options 运行时选项
+ * @param {Function} options.pathResolver 自定义路径解析函数
+ * @param {boolean} options.clearCache 是否清理模块缓存
+ * @param {Object} options.runtimeContext 运行时上下文（workspaceDir, memoriesDir 等）
  * @returns {Object} 模块实例映射
  */
-function initModules(config) {
+function initModules(config, options = {}) {
+    // 保存运行时选项
+    runtimeOptions = options;
+    
     const enabledModules = getEnabledModules(config);
     
     for (const moduleConfig of enabledModules) {
         try {
             // 解析模块路径
             const modulePath = resolveModulePath(moduleConfig);
+            
+            // 可选：清理模块缓存
+            if (options.clearCache) {
+                clearModuleCache(modulePath);
+            }
             
             // 动态加载模块
             const serviceModule = require(modulePath);
@@ -172,13 +229,15 @@ function initModules(config) {
                 continue;
             }
             
-            // 生成初始化参数
-            const options = typeof moduleConfig.getOptions === 'function' 
-                ? moduleConfig.getOptions(config) 
-                : {};
+            // 生成初始化参数（支持 runtimeContext）
+            let moduleOptions = {};
+            if (typeof moduleConfig.getOptions === 'function') {
+                // getOptions 可以接收 config 和 runtimeContext 两个参数
+                moduleOptions = moduleConfig.getOptions(config, options.runtimeContext);
+            }
             
             // 创建模块实例
-            const instance = setupFunction(options);
+            const instance = setupFunction(moduleOptions);
             moduleInstances[moduleConfig.name] = instance;
             
             logger.info(`已初始化模块: ${moduleConfig.name} (来源: ${moduleConfig.source || 'builtin'})`);
@@ -314,6 +373,14 @@ function getModuleConfigs() {
     return mergedModuleConfigs;
 }
 
+/**
+ * 获取运行时选项
+ * @returns {Object} 运行时选项
+ */
+function getRuntimeOptions() {
+    return runtimeOptions;
+}
+
 module.exports = {
     loadAllConfigs,
     getEnabledModules,
@@ -322,5 +389,9 @@ module.exports = {
     shutdownModules,
     getModule,
     getAllModules,
-    getModuleConfigs
+    getModuleConfigs,
+    getRuntimeOptions,
+    reset,
+    clearModuleCache,
+    defaultPathResolver
 };

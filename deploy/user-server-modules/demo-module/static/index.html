@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>自定义模块 - 演示</title>
+    <style>
+        :root {
+            --primary-color: #4a90d9;
+            --success-color: #52c41a;
+            --warning-color: #faad14;
+            --error-color: #ff4d4f;
+            --bg-color: #f5f7fa;
+            --card-bg: #ffffff;
+            --text-color: #333333;
+            --text-secondary: #666666;
+            --border-color: #e8e8e8;
+            --code-bg: #f6f8fa;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+        
+        header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+        
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 24px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+        }
+        
+        .card h2 {
+            font-size: 1.4rem;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .card h3 {
+            font-size: 1.1rem;
+            margin: 20px 0 12px;
+            color: var(--text-color);
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: #f0fdf4;
+            border-radius: 20px;
+            font-weight: 500;
+        }
+        
+        .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--success-color);
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .api-list {
+            list-style: none;
+        }
+        
+        .api-item {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .api-item:last-child {
+            border-bottom: none;
+        }
+        
+        .api-method {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 4px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .api-method.get { background: #e6f7ff; color: #1890ff; }
+        .api-method.post { background: #f6ffed; color: #52c41a; }
+        
+        .api-path {
+            font-family: 'Monaco', 'Menlo', monospace;
+            margin-left: 12px;
+            color: var(--text-color);
+        }
+        
+        .api-desc {
+            margin-left: auto;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .code-block {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 16px;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', 'Consolas', monospace;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin: 12px 0;
+        }
+        
+        .code-block .comment { color: #6a737d; }
+        .code-block .keyword { color: #d73a49; }
+        .code-block .string { color: #032f62; }
+        .code-block .function { color: #6f42c1; }
+        
+        .test-section {
+            margin-top: 20px;
+        }
+        
+        .test-btn {
+            display: inline-block;
+            padding: 10px 24px;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: background 0.3s;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .test-btn:hover {
+            background: #357abd;
+        }
+        
+        .test-btn.secondary {
+            background: #6c757d;
+        }
+        
+        .test-btn.secondary:hover {
+            background: #5a6268;
+        }
+        
+        .result-box {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 300px;
+            overflow-y: auto;
+            display: none;
+        }
+        
+        .result-box.show {
+            display: block;
+        }
+        
+        .step-list {
+            counter-reset: step;
+        }
+        
+        .step-item {
+            position: relative;
+            padding-left: 40px;
+            margin-bottom: 16px;
+        }
+        
+        .step-item::before {
+            counter-increment: step;
+            content: counter(step);
+            position: absolute;
+            left: 0;
+            width: 28px;
+            height: 28px;
+            background: var(--primary-color);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .interface-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 12px 0;
+        }
+        
+        .interface-table th,
+        .interface-table td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .interface-table th {
+            background: var(--bg-color);
+            font-weight: 600;
+        }
+        
+        .interface-table code {
+            background: var(--code-bg);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        
+        .tag.optional { background: #fff7e6; color: #d46b08; }
+        .tag.required { background: #fff1f0; color: #cf1322; }
+        
+        footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid var(--border-color);
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>自定义模块演示</h1>
+            <p class="subtitle">展示 deepseek-cowork 自定义模块的完整功能</p>
+        </header>
+        
+        <div class="card">
+            <h2>模块状态</h2>
+            <div class="status-indicator">
+                <span class="status-dot"></span>
+                <span>运行中</span>
+            </div>
+            <div id="statusInfo" style="margin-top: 16px; color: var(--text-secondary);"></div>
+        </div>
+        
+        <div class="card">
+            <h2>功能概述</h2>
+            <p>自定义模块功能允许用户扩展 deepseek-cowork 服务端能力，无需修改核心代码。主要特点：</p>
+            <ul style="margin: 16px 0; padding-left: 24px;">
+                <li>独立的模块目录，便于管理和版本控制</li>
+                <li>标准化的模块接口，简化开发流程</li>
+                <li>支持路由注册、静态资源、事件发射</li>
+                <li>热加载支持，服务重启即可生效</li>
+            </ul>
+        </div>
+        
+        <div class="card">
+            <h2>API 接口</h2>
+            <ul class="api-list">
+                <li class="api-item">
+                    <span class="api-method get">GET</span>
+                    <span class="api-path">/demo/</span>
+                    <span class="api-desc">本介绍页面</span>
+                </li>
+                <li class="api-item">
+                    <span class="api-method get">GET</span>
+                    <span class="api-path">/api/demo/status</span>
+                    <span class="api-desc">获取模块运行状态</span>
+                </li>
+                <li class="api-item">
+                    <span class="api-method post">POST</span>
+                    <span class="api-path">/api/demo/echo</span>
+                    <span class="api-desc">Echo 请求体</span>
+                </li>
+                <li class="api-item">
+                    <span class="api-method get">GET</span>
+                    <span class="api-path">/api/demo/info</span>
+                    <span class="api-desc">获取模块详细信息</span>
+                </li>
+            </ul>
+            
+            <div class="test-section">
+                <h3>在线测试</h3>
+                <button class="test-btn" onclick="testStatus()">测试 /api/demo/status</button>
+                <button class="test-btn secondary" onclick="testEcho()">测试 /api/demo/echo</button>
+                <button class="test-btn secondary" onclick="testInfo()">测试 /api/demo/info</button>
+                <div id="resultBox" class="result-box"></div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>模块接口规范</h2>
+            <p>自定义模块需要导出一个 setup 函数，返回实现以下接口的服务实例：</p>
+            
+            <table class="interface-table">
+                <thead>
+                    <tr>
+                        <th>方法</th>
+                        <th>必须</th>
+                        <th>说明</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>init()</code></td>
+                        <td><span class="tag optional">可选</span></td>
+                        <td>初始化逻辑，在模块加载后调用</td>
+                    </tr>
+                    <tr>
+                        <td><code>setupRoutes(app)</code></td>
+                        <td><span class="tag optional">可选</span></td>
+                        <td>注册 Express 路由</td>
+                    </tr>
+                    <tr>
+                        <td><code>start()</code></td>
+                        <td><span class="tag optional">可选</span></td>
+                        <td>启动服务</td>
+                    </tr>
+                    <tr>
+                        <td><code>stop()</code></td>
+                        <td><span class="tag optional">可选</span></td>
+                        <td>停止服务，清理资源</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="card">
+            <h2>快速开发指南</h2>
+            
+            <div class="step-list">
+                <div class="step-item">
+                    <strong>创建模块目录</strong>
+                    <div class="code-block">
+<span class="comment"># Windows</span>
+%APPDATA%\deepseek-cowork\user-server-modules\my-module\
+
+<span class="comment"># macOS</span>
+~/Library/Application Support/deepseek-cowork/user-server-modules/my-module/
+
+<span class="comment"># Linux</span>
+~/.config/deepseek-cowork/user-server-modules/my-module/
+                    </div>
+                </div>
+                
+                <div class="step-item">
+                    <strong>编写模块入口 (index.js)</strong>
+                    <div class="code-block">
+<span class="keyword">const</span> { EventEmitter } = <span class="function">require</span>(<span class="string">'events'</span>);
+
+<span class="keyword">function</span> <span class="function">setupMyModuleService</span>(options = {}) {
+    <span class="keyword">class</span> MyModuleService <span class="keyword">extends</span> EventEmitter {
+        <span class="keyword">async</span> <span class="function">init</span>() {
+            console.<span class="function">log</span>(<span class="string">'[MyModule] 初始化'</span>);
+        }
+        
+        <span class="function">setupRoutes</span>(app) {
+            app.<span class="function">get</span>(<span class="string">'/api/my-module/hello'</span>, (req, res) => {
+                res.<span class="function">json</span>({ message: <span class="string">'Hello from my module!'</span> });
+            });
+        }
+        
+        <span class="keyword">async</span> <span class="function">start</span>() {
+            <span class="keyword">this</span>.<span class="function">emit</span>(<span class="string">'started'</span>);
+        }
+        
+        <span class="keyword">async</span> <span class="function">stop</span>() {
+            <span class="keyword">this</span>.<span class="function">emit</span>(<span class="string">'stopped'</span>);
+        }
+    }
+    <span class="keyword">return new</span> <span class="function">MyModuleService</span>();
+}
+
+module.exports = { setupMyModuleService };
+                    </div>
+                </div>
+                
+                <div class="step-item">
+                    <strong>创建配置文件 (userServerModulesConfig.js)</strong>
+                    <div class="code-block">
+module.exports = {
+    modules: [
+        {
+            name: <span class="string">'my-module'</span>,
+            module: <span class="string">'./my-module'</span>,
+            setupFunction: <span class="string">'setupMyModuleService'</span>,
+            enabled: <span class="keyword">true</span>,
+            features: {
+                hasRoutes: <span class="keyword">true</span>
+            }
+        }
+    ]
+};
+                    </div>
+                </div>
+                
+                <div class="step-item">
+                    <strong>重启服务</strong>
+                    <p style="margin-top: 8px;">服务重启后会自动加载新模块，访问 <code>/api/my-module/hello</code> 验证。</p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>部署命令</h2>
+            <div class="code-block">
+<span class="comment"># 查看可用模块模板</span>
+node deploy/index.js module --list
+
+<span class="comment"># 部署演示模块</span>
+node deploy/index.js module demo-module
+
+<span class="comment"># 查看已部署模块状态</span>
+node deploy/index.js module --status
+
+<span class="comment"># 移除已部署模块</span>
+node deploy/index.js module --remove demo-module
+            </div>
+        </div>
+        
+        <footer>
+            <p>deepseek-cowork - 自定义模块演示</p>
+        </footer>
+    </div>
+    
+    <script>
+        // 页面加载时获取状态
+        window.onload = function() {
+            fetchStatus();
+        };
+        
+        function fetchStatus() {
+            fetch('/api/demo/status')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        const info = data.data;
+                        document.getElementById('statusInfo').innerHTML = 
+                            `版本: ${info.version} | 运行时长: ${info.uptime}秒 | 请求计数: ${info.requestCount}`;
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('statusInfo').innerHTML = '无法获取状态信息';
+                });
+        }
+        
+        function showResult(data) {
+            const box = document.getElementById('resultBox');
+            box.textContent = JSON.stringify(data, null, 2);
+            box.classList.add('show');
+        }
+        
+        function testStatus() {
+            fetch('/api/demo/status')
+                .then(res => res.json())
+                .then(showResult)
+                .catch(err => showResult({ error: err.message }));
+        }
+        
+        function testEcho() {
+            fetch('/api/demo/echo', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ message: 'Hello from demo!', timestamp: new Date().toISOString() })
+            })
+                .then(res => res.json())
+                .then(showResult)
+                .catch(err => showResult({ error: err.message }));
+        }
+        
+        function testInfo() {
+            fetch('/api/demo/info')
+                .then(res => res.json())
+                .then(showResult)
+                .catch(err => showResult({ error: err.message }));
+        }
+    </script>
+</body>
+</html>
