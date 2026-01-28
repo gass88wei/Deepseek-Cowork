@@ -1,0 +1,722 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飞书模块管理</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2rem;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .status-disconnected {
+            background: #f8d7da;
+            color: #721c24;
+        }
+        
+        .status-unknown {
+            background: #e2e3e5;
+            color: #383d41;
+        }
+        
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        
+        .info-item {
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .info-label {
+            font-size: 0.8rem;
+            color: #666;
+            margin-bottom: 4px;
+        }
+        
+        .info-value {
+            font-size: 1rem;
+            color: #333;
+            font-weight: 500;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .form-input, .form-select {
+            width: 100%;
+            padding: 10px 14px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .form-input:focus, .form-select:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .form-input::placeholder {
+            color: #999;
+        }
+        
+        .form-help {
+            font-size: 0.8rem;
+            color: #666;
+            margin-top: 6px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+        
+        .btn-secondary:hover {
+            background: #e9ecef;
+        }
+        
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #c82333;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .alert {
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .tag-input {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            min-height: 46px;
+            align-items: center;
+        }
+        
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #667eea;
+            color: white;
+            border-radius: 4px;
+            font-size: 0.9rem;
+        }
+        
+        .tag-remove {
+            cursor: pointer;
+            font-size: 1.2rem;
+            line-height: 1;
+            opacity: 0.8;
+        }
+        
+        .tag-remove:hover {
+            opacity: 1;
+        }
+        
+        .tag-input input {
+            border: none;
+            outline: none;
+            flex: 1;
+            min-width: 120px;
+            padding: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>飞书模块管理</h1>
+        
+        <!-- 消息提示 -->
+        <div id="alert" class="alert hidden"></div>
+        
+        <!-- 状态卡片 -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">连接状态</span>
+                <span id="statusBadge" class="status-badge status-unknown">加载中...</span>
+            </div>
+            <div id="statusContent" class="loading">
+                <div class="loading-spinner"></div>
+                <div>正在加载状态...</div>
+            </div>
+        </div>
+        
+        <!-- 配置卡片 -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">配置管理</span>
+            </div>
+            
+            <form id="configForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">飞书应用 ID (App ID)</label>
+                        <input type="text" id="appId" class="form-input" placeholder="cli_xxxx">
+                        <div class="form-help">在飞书开放平台获取</div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">飞书应用密钥 (App Secret)</label>
+                        <input type="password" id="appSecret" class="form-input" placeholder="留空则不修改">
+                        <div class="form-help">敏感信息，将安全存储</div>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">域名</label>
+                        <select id="domain" class="form-select">
+                            <option value="feishu">飞书 (国内)</option>
+                            <option value="lark">Lark (国际)</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">连接模式</label>
+                        <select id="connectionMode" class="form-select">
+                            <option value="websocket">WebSocket (推荐)</option>
+                            <option value="webhook">Webhook</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">私聊策略</label>
+                        <select id="dmPolicy" class="form-select">
+                            <option value="open">开放 - 允许所有用户</option>
+                            <option value="allowlist">白名单 - 仅允许指定用户</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">群聊策略</label>
+                        <select id="groupPolicy" class="form-select">
+                            <option value="open">开放 - 允许所有群聊</option>
+                            <option value="allowlist">白名单 - 仅允许指定群聊</option>
+                            <option value="disabled">禁用 - 不响应群聊消息</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">私聊白名单 (用户 Open ID)</label>
+                    <div class="tag-input" id="allowFromContainer">
+                        <input type="text" id="allowFromInput" placeholder="输入 Open ID 后按回车添加">
+                    </div>
+                    <div class="form-help">仅在私聊策略为"白名单"时生效</div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">群聊白名单 (群聊 ID)</label>
+                    <div class="tag-input" id="groupAllowFromContainer">
+                        <input type="text" id="groupAllowFromInput" placeholder="输入群聊 ID 后按回车添加">
+                    </div>
+                    <div class="form-help">仅在群聊策略为"白名单"时生效</div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="requireMention" checked>
+                        <label for="requireMention">群聊需要 @机器人 才响应</label>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="enabled">
+                        <label for="enabled">启用飞书模块</label>
+                    </div>
+                </div>
+                
+                <div class="btn-group">
+                    <button type="submit" class="btn btn-primary">保存配置</button>
+                    <button type="button" class="btn btn-secondary" onclick="loadConfig()">刷新</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- 操作卡片 -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">操作</span>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-primary" onclick="reconnect()">重新连接</button>
+                <button class="btn btn-secondary" onclick="testConnection()">测试连接</button>
+            </div>
+        </div>
+        
+        <!-- 测试发送卡片 -->
+        <div class="card">
+            <div class="card-header">
+                <span class="card-title">测试发送</span>
+            </div>
+            <div class="form-group">
+                <label class="form-label">接收者 ID</label>
+                <input type="text" id="testTo" class="form-input" placeholder="user:ou_xxx 或 chat:oc_xxx">
+            </div>
+            <div class="form-group">
+                <label class="form-label">消息内容</label>
+                <input type="text" id="testMessage" class="form-input" placeholder="测试消息">
+            </div>
+            <button class="btn btn-primary" onclick="sendTestMessage()">发送测试消息</button>
+        </div>
+    </div>
+    
+    <script>
+        // 白名单数据
+        let allowFrom = [];
+        let groupAllowFrom = [];
+        
+        // 显示消息
+        function showAlert(message, type = 'info') {
+            const alert = document.getElementById('alert');
+            alert.className = `alert alert-${type}`;
+            alert.textContent = message;
+            alert.classList.remove('hidden');
+            
+            setTimeout(() => {
+                alert.classList.add('hidden');
+            }, 5000);
+        }
+        
+        // 加载状态
+        async function loadStatus() {
+            try {
+                const response = await fetch('/api/feishu/status');
+                const result = await response.json();
+                
+                if (result.success) {
+                    updateStatusUI(result.data);
+                } else {
+                    showAlert('加载状态失败: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('加载状态失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 更新状态 UI
+        function updateStatusUI(data) {
+            const badge = document.getElementById('statusBadge');
+            const content = document.getElementById('statusContent');
+            
+            // 更新状态徽章
+            if (data.connection.connected) {
+                badge.textContent = '已连接';
+                badge.className = 'status-badge status-connected';
+            } else if (data.isRunning) {
+                badge.textContent = '运行中';
+                badge.className = 'status-badge status-unknown';
+            } else {
+                badge.textContent = '未连接';
+                badge.className = 'status-badge status-disconnected';
+            }
+            
+            // 更新详细信息
+            content.innerHTML = `
+                <div class="info-grid">
+                    <div class="info-item">
+                        <div class="info-label">模块版本</div>
+                        <div class="info-value">${data.version}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">运行时长</div>
+                        <div class="info-value">${formatUptime(data.uptime)}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">请求计数</div>
+                        <div class="info-value">${data.requestCount}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">应用 ID</div>
+                        <div class="info-value">${data.config.appId || '未配置'}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">连接模式</div>
+                        <div class="info-value">${data.config.connectionMode}</div>
+                    </div>
+                    <div class="info-item">
+                        <div class="info-label">HappyService</div>
+                        <div class="info-value">${data.coreServices.happyService ? '✓ 可用' : '✗ 不可用'}</div>
+                    </div>
+                    ${data.connection.lastConnectedAt ? `
+                    <div class="info-item">
+                        <div class="info-label">最后连接时间</div>
+                        <div class="info-value">${new Date(data.connection.lastConnectedAt).toLocaleString()}</div>
+                    </div>
+                    ` : ''}
+                    ${data.connection.lastError ? `
+                    <div class="info-item">
+                        <div class="info-label">最后错误</div>
+                        <div class="info-value" style="color: #dc3545;">${data.connection.lastError}</div>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+        }
+        
+        // 格式化运行时长
+        function formatUptime(seconds) {
+            if (seconds < 60) return `${seconds} 秒`;
+            if (seconds < 3600) return `${Math.floor(seconds / 60)} 分钟`;
+            if (seconds < 86400) return `${Math.floor(seconds / 3600)} 小时`;
+            return `${Math.floor(seconds / 86400)} 天`;
+        }
+        
+        // 加载配置
+        async function loadConfig() {
+            try {
+                const response = await fetch('/api/feishu/config');
+                const result = await response.json();
+                
+                if (result.success) {
+                    const data = result.data;
+                    
+                    document.getElementById('appId').value = data.appId || '';
+                    document.getElementById('domain').value = data.domain || 'feishu';
+                    document.getElementById('connectionMode').value = data.connectionMode || 'websocket';
+                    document.getElementById('dmPolicy').value = data.dmPolicy || 'open';
+                    document.getElementById('groupPolicy').value = data.groupPolicy || 'allowlist';
+                    document.getElementById('requireMention').checked = data.requireMention !== false;
+                    document.getElementById('enabled').checked = data.enabled === true;
+                    
+                    // 更新白名单
+                    allowFrom = data.allowFrom || [];
+                    groupAllowFrom = data.groupAllowFrom || [];
+                    renderTags('allowFromContainer', 'allowFromInput', allowFrom);
+                    renderTags('groupAllowFromContainer', 'groupAllowFromInput', groupAllowFrom);
+                }
+            } catch (error) {
+                showAlert('加载配置失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 保存配置
+        async function saveConfig(event) {
+            event.preventDefault();
+            
+            const config = {
+                appId: document.getElementById('appId').value.trim(),
+                domain: document.getElementById('domain').value,
+                connectionMode: document.getElementById('connectionMode').value,
+                dmPolicy: document.getElementById('dmPolicy').value,
+                groupPolicy: document.getElementById('groupPolicy').value,
+                requireMention: document.getElementById('requireMention').checked,
+                enabled: document.getElementById('enabled').checked,
+                allowFrom: allowFrom,
+                groupAllowFrom: groupAllowFrom
+            };
+            
+            // 如果填写了密钥，则包含
+            const appSecret = document.getElementById('appSecret').value;
+            if (appSecret) {
+                config.appSecret = appSecret;
+            }
+            
+            try {
+                const response = await fetch('/api/feishu/config', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('配置已保存', 'success');
+                    document.getElementById('appSecret').value = '';
+                    loadStatus();
+                } else {
+                    showAlert('保存失败: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('保存失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 重新连接
+        async function reconnect() {
+            try {
+                const response = await fetch('/api/feishu/reconnect', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('正在重新连接...', 'info');
+                    setTimeout(loadStatus, 2000);
+                } else {
+                    showAlert('重连失败: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('重连失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 测试连接
+        async function testConnection() {
+            showAlert('正在测试连接...', 'info');
+            await loadStatus();
+            showAlert('状态已刷新', 'success');
+        }
+        
+        // 发送测试消息
+        async function sendTestMessage() {
+            const to = document.getElementById('testTo').value.trim();
+            const message = document.getElementById('testMessage').value.trim();
+            
+            if (!to || !message) {
+                showAlert('请填写接收者 ID 和消息内容', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/feishu/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ to, message })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showAlert('消息已发送', 'success');
+                } else {
+                    showAlert('发送失败: ' + result.error, 'error');
+                }
+            } catch (error) {
+                showAlert('发送失败: ' + error.message, 'error');
+            }
+        }
+        
+        // 渲染标签
+        function renderTags(containerId, inputId, tags) {
+            const container = document.getElementById(containerId);
+            const input = document.getElementById(inputId);
+            
+            // 清除现有标签
+            container.querySelectorAll('.tag').forEach(tag => tag.remove());
+            
+            // 添加新标签
+            tags.forEach((tag, index) => {
+                const tagEl = document.createElement('span');
+                tagEl.className = 'tag';
+                tagEl.innerHTML = `${tag}<span class="tag-remove" data-index="${index}">&times;</span>`;
+                container.insertBefore(tagEl, input);
+            });
+        }
+        
+        // 初始化标签输入
+        function initTagInput(containerId, inputId, tagsArray) {
+            const container = document.getElementById(containerId);
+            const input = document.getElementById(inputId);
+            
+            // 输入框回车添加标签
+            input.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const value = input.value.trim();
+                    if (value && !tagsArray.includes(value)) {
+                        tagsArray.push(value);
+                        renderTags(containerId, inputId, tagsArray);
+                        input.value = '';
+                    }
+                }
+            });
+            
+            // 点击删除标签
+            container.addEventListener('click', (e) => {
+                if (e.target.classList.contains('tag-remove')) {
+                    const index = parseInt(e.target.dataset.index);
+                    tagsArray.splice(index, 1);
+                    renderTags(containerId, inputId, tagsArray);
+                }
+            });
+        }
+        
+        // 初始化
+        document.addEventListener('DOMContentLoaded', () => {
+            loadStatus();
+            loadConfig();
+            
+            document.getElementById('configForm').addEventListener('submit', saveConfig);
+            
+            // 初始化标签输入
+            initTagInput('allowFromContainer', 'allowFromInput', allowFrom);
+            initTagInput('groupAllowFromContainer', 'groupAllowFromInput', groupAllowFrom);
+            
+            // 定时刷新状态
+            setInterval(loadStatus, 30000);
+        });
+    </script>
+</body>
+</html>

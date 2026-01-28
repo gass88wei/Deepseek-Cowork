@@ -70,6 +70,48 @@ module.exports = {
     colorize: true
   },
   
+  // 飞书模块配置
+  feishu: {
+    // 是否启用飞书模块
+    enabled: false,
+    
+    // 飞书应用 ID（建议使用 secureSettings 或环境变量 FEISHU_APP_ID）
+    appId: null,
+    
+    // 飞书应用密钥（建议使用 secureSettings 或环境变量 FEISHU_APP_SECRET）
+    appSecret: null,
+    
+    // 域名: 'feishu' (国内) 或 'lark' (国际)
+    domain: 'feishu',
+    
+    // 连接模式: 'websocket' (推荐) 或 'webhook'
+    connectionMode: 'websocket',
+    
+    // 私聊策略: 'open' (开放) | 'allowlist' (白名单)
+    dmPolicy: 'open',
+    
+    // 私聊白名单（用户 Open ID 列表）
+    allowFrom: [],
+    
+    // 群聊策略: 'open' (开放) | 'allowlist' (白名单) | 'disabled' (禁用)
+    groupPolicy: 'allowlist',
+    
+    // 群聊白名单（群聊 ID 列表）
+    groupAllowFrom: [],
+    
+    // 群聊是否需要 @机器人
+    requireMention: true,
+    
+    // 单条消息最大字符数（超过会分块发送）
+    textChunkLimit: 4000,
+    
+    // 群组特定配置（可选）
+    // groups: {
+    //   'oc_xxx': { requireMention: false, allowFrom: [] }
+    // }
+    groups: {}
+  },
+  
   // Explorer 文件浏览器配置
   explorer: {
     // 是否启用 Explorer 服务
