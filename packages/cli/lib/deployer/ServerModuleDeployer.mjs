@@ -203,7 +203,8 @@ export class ServerModuleDeployer {
             const npmProcess = spawn(npmCmd, ['install', '--production'], {
                 cwd: modulePath,
                 stdio: 'pipe',
-                shell: false
+                shell: isWindows, // Windows 上需要 shell
+                windowsHide: true
             });
             
             let stdout = '';
@@ -421,26 +422,62 @@ export class ServerModuleDeployer {
             // 检查模块是否已在配置中
             const existingIndex = config.modules.findIndex(m => m.name === moduleName);
             if (existingIndex === -1) {
-                // 读取模块获取 setup 函数名
-                const modulePath = path.join(this.userModulesDir, moduleName, 'index.js');
-                let setupFunction = `setup${this.toPascalCase(moduleName)}Service`;
+                const modulePath = path.join(this.userModulesDir, moduleName);
+                const indexPath = path.join(modulePath, 'index.js');
+                const packageJsonPath = path.join(modulePath, 'package.json');
                 
-                if (fs.existsSync(modulePath)) {
-                    const content = fs.readFileSync(modulePath, 'utf8');
+                // 读取 package.json 获取模块配置
+                let packageConfig = null;
+                if (fs.existsSync(packageJsonPath)) {
+                    try {
+                        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+                        packageConfig = packageJson['deepseek-cowork'] || null;
+                    } catch (err) {
+                        // package.json 解析失败，忽略
+                    }
+                }
+                
+                // 读取模块获取 setup 函数名
+                let setupFunction = `setup${this.toPascalCase(moduleName)}Service`;
+                if (packageConfig?.setupFunction) {
+                    setupFunction = packageConfig.setupFunction;
+                } else if (fs.existsSync(indexPath)) {
+                    const content = fs.readFileSync(indexPath, 'utf8');
                     const match = content.match(/module\.exports\s*=\s*\{\s*(\w+)/);
                     if (match) {
                         setupFunction = match[1];
                     }
                 }
 
+                // 读取 features 配置
+                let features = {
+                    hasRoutes: true,
+                    hasStatic: false
+                };
+                if (packageConfig?.features) {
+                    features = { ...features, ...packageConfig.features };
+                } else if (fs.existsSync(indexPath)) {
+                    // 检查是否有静态目录
+                    const staticDir = path.join(modulePath, 'static');
+                    if (fs.existsSync(staticDir)) {
+                        features.hasStatic = true;
+                    }
+                }
+
                 // 检查模块是否需要核心服务注入
                 // 通过检测 options.HappyService 或 options.MessageStore 的使用
                 let needsCoreServices = false;
-                if (fs.existsSync(modulePath)) {
-                    const content = fs.readFileSync(modulePath, 'utf8');
+                if (fs.existsSync(indexPath)) {
+                    const content = fs.readFileSync(indexPath, 'utf8');
                     needsCoreServices = content.includes('options.HappyService') || 
                                         content.includes('options.MessageStore') ||
                                         content.includes('options.MemoryManager');
+                }
+
+                // 检查是否需要自定义 getOptions
+                let customGetOptions = null;
+                if (packageConfig?.getOptions) {
+                    customGetOptions = packageConfig.getOptions;
                 }
 
                 const moduleConfig = {
@@ -448,14 +485,17 @@ export class ServerModuleDeployer {
                     module: `./${moduleName}`,
                     setupFunction: setupFunction,
                     enabled: true,
-                    features: {
-                        hasRoutes: true
-                    }
+                    features: features
                 };
                 
                 // 标记需要核心服务注入（在序列化时使用）
                 if (needsCoreServices) {
                     moduleConfig._needsCoreServices = true;
+                }
+                
+                // 标记自定义 getOptions（在序列化时使用）
+                if (customGetOptions) {
+                    moduleConfig._customGetOptions = customGetOptions;
                 }
 
                 config.modules.push(moduleConfig);
@@ -476,16 +516,38 @@ export class ServerModuleDeployer {
      */
     generateConfigFile(config) {
         const moduleConfigs = config.modules.map(m => {
-            // 如果模块需要核心服务，生成带 getOptions 的配置
-            if (m._needsCoreServices) {
+            const featuresObj = {
+                hasRoutes: m.features?.hasRoutes ?? true,
+                hasStatic: m.features?.hasStatic ?? false
+            };
+            const featuresStr = `{
+                hasRoutes: ${featuresObj.hasRoutes},
+                hasStatic: ${featuresObj.hasStatic}
+            }`;
+            
+            // 如果模块有自定义 getOptions，优先使用
+            if (m._customGetOptions) {
+                const getOptionsStr = typeof m._customGetOptions === 'string' 
+                    ? this.generateGetOptionsFromString(m._customGetOptions, m.name)
+                    : JSON.stringify(m._customGetOptions);
+                
                 return `        {
             name: '${m.name}',
             module: '${m.module}',
             setupFunction: '${m.setupFunction}',
             enabled: ${m.enabled},
-            features: {
-                hasRoutes: ${m.features?.hasRoutes ?? true}
-            },
+            features: ${featuresStr},
+            getOptions: ${getOptionsStr}
+        }`;
+            }
+            // 如果模块需要核心服务，生成带 getOptions 的配置
+            else if (m._needsCoreServices) {
+                return `        {
+            name: '${m.name}',
+            module: '${m.module}',
+            setupFunction: '${m.setupFunction}',
+            enabled: ${m.enabled},
+            features: ${featuresStr},
             // 注入核心服务（通过 runtimeContext.services）
             getOptions: (config, runtimeContext) => ({
                 HappyService: runtimeContext?.services?.HappyService,
@@ -499,9 +561,7 @@ export class ServerModuleDeployer {
             module: '${m.module}',
             setupFunction: '${m.setupFunction}',
             enabled: ${m.enabled},
-            features: {
-                hasRoutes: ${m.features?.hasRoutes ?? true}
-            }
+            features: ${featuresStr}
         }`;
             }
         }).join(',\n');
@@ -527,6 +587,33 @@ ${moduleConfigs}
     ]
 };
 `;
+    }
+
+    /**
+     * 从字符串生成 getOptions 函数
+     * 例如: "userDataPath,dbPath" -> (config, runtimeContext) => ({ userDataPath: ..., dbPath: ... })
+     * @param {string} optionsStr - 选项字符串，例如 "userDataPath,dbPath"
+     * @param {string} moduleName - 模块名称
+     */
+    generateGetOptionsFromString(optionsStr, moduleName) {
+        // 解析选项字符串，例如 "userDataPath,dbPath"
+        const options = optionsStr.split(',').map(s => s.trim()).filter(s => s);
+        
+        // 生成函数体
+        const optionsObj = options.map(opt => {
+            if (opt === 'userDataPath') {
+                return `                userDataPath: runtimeContext?.userDataPath`;
+            } else if (opt === 'dbPath') {
+                return `                dbPath: config?.${moduleName}?.dbPath`;
+            } else {
+                // 默认从 runtimeContext 获取
+                return `                ${opt}: runtimeContext?.${opt}`;
+            }
+        }).join(',\n');
+        
+        return `(config, runtimeContext) => ({
+${optionsObj}
+            })`;
     }
 
     /**
