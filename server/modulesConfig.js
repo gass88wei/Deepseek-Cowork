@@ -45,7 +45,7 @@ const modules = [
                 }
             },
             stopped: () => {
-                logger.info('浏览器控制服务器已停止');
+                logger.info('Browser control server stopped');
             },
             error: ({ type, error }) => {
                 logger.error(`浏览器控制服务器错误 (${type}):`, error);

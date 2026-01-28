@@ -1,5 +1,18 @@
 [
   {
+    "slug": "remotion-skill-demo",
+    "title": "When I Taught AI to Use Remotion: Zero to Tutorial Video in 30 Minutes",
+    "date": "2026-01-28",
+    "summary": "Zero Remotion knowledge, 30 minutes of chatting with AI, one 2-minute professional tutorial video. Here's how conversational development actually works.",
+    "cover": "https://images.unsplash.com/photo-1611224923853-80b023f02d71?w=800&q=80",
+    "tags": ["Tutorial", "Skills", "Remotion"],
+    "author": {
+      "name": "imjszhang",
+      "avatar": "https://unavatar.io/x/imjszhang",
+      "url": "https://x.com/imjszhang"
+    }
+  },
+  {
     "slug": "hybrid-architecture",
     "title": "Abandoning the Backend: An Indie Dev’s Architecture Practice for Building an Open-Source Claude Cowork",
     "date": "2026-01-22",

@@ -343,7 +343,7 @@ async function shutdownModules() {
         try {
             if (instance.stop && typeof instance.stop === 'function') {
                 await instance.stop();
-                logger.info(`模块 ${moduleName} 已关闭`);
+                logger.info(`Module ${moduleName} stopped`);
             }
         } catch (error) {
             logger.error(`关闭模块 ${moduleName} 时出错:`, error);

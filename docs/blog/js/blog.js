@@ -277,6 +277,20 @@ const Blog = {
                 headerIds: true,
                 mangle: false,
             });
+            
+            // Custom image renderer to fix relative paths
+            const renderer = new marked.Renderer();
+            const originalImageRenderer = renderer.image.bind(renderer);
+            renderer.image = (href, title, text) => {
+                // Convert relative paths: ../assets/ -> ./assets/
+                // This is needed because Markdown files are in posts/ but HTML is in blog/
+                if (href && href.startsWith('../')) {
+                    href = href.replace(/^\.\.\//, './');
+                }
+                return originalImageRenderer(href, title, text);
+            };
+            
+            marked.setOptions({ renderer });
             return marked.parse(markdown);
         }
         
