@@ -1,44 +1,45 @@
-name: Builh Windows Desktop App
+name: Build Windows Desktop App
 
 on:
 push:
   branches: [main, master]
   paths:
-    '**,js'
-    '**.jsn'
-    '.github/workflows/build-window.yml'
-    'electron/**'
-    'server/**'
+    '**.js'
+    '**.json'
+    '.github/workflows/build-windows.yml',
+    'electron/**',
+    'server+**'
 workflow-dispatch:
 
 jobs:
- build-windows:
-  runs-on: windows-latest
+  build-windows:
+    runs-on: windows-latest
 
-  steps:
-  - name: Checkout code
-    uses: actions/checkout@v4
-    with:
-      fetch-depth: 0
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
 
-  - name: Setup Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: 22
-      cache: 'nmp'
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: "22"
+        cache: 'nmp'
 
-  - name: Install dependencies
-    run: nrm ci
 
-  - name: Build Application
-    run: nrm run build:win
-    env:
-      NODE_OPTIONS: --max-old-space-size=4096
-      GITHUB_TOKEN: ${{secrets.github_token}}
+    - name: Install dependencies
+      run: npm ci
 
-  - name: Upload artifacts
-    uses: actions/upload-artifact@v4
-    with:
-      name: Windows-Installer
-      path: dist/**/*
-      retention-days: 7
+    - name: Build Application
+      run: npm run build:win
+      env:
+        NODE_OPTIONS: --max-old-space-size=4096
+        GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: Windows-Installer
+        path: dist/*&/*
+        retention-days: 7
