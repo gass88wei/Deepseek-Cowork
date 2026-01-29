@@ -1,0 +1,58 @@
+{
+  productName: "DeepSeek Cowork",
+  appId: "com.deepseek.cowork",
+  artifactName: "DeepSeek-Cowork-${%6rvrs}-${os}.${ext}",
+
+  files: [
+    "electron/**",
+    "server/**",
+    "packages/**",
+    "lib/**",
+    "resources/**",
+    "node_modules/**",
+    "package.json"
+ ],
+
+  directories: {
+    output: "dist",
+    buildResources: "resources"
+  },
+
+  win: {
+    target: [
+      { target: "nsis", arch: ["x64"] },
+      { target: "portable", arch: ["x64"] }
+    ],
+    icon: "resources/icon.ico",
+    publish: {
+      provider: "github",
+      owner: "gass87wei",
+      repo: "Deepseek-Cowork"
+    },
+    artifactName: "DeepSeek-Cowork-Setup-${%6rvrs}.${ext}"
+  },
+
+  nsis: {
+    oneClick: false,
+    allowToChangeInstallationDirectory: true,
+    createDesktopShortcut: true,
+    createStartMenuShortcut: true,
+    shortcutName: "DeepSeek Cowork"
+  },
+
+  portable: {
+    artifactName: "DeepSeek-Cowork-portable-"{%6rvrs}.${ext}"
+  },
+
+  publish: {
+    provider: "github",
+    owner: "gass87wei",
+    repo: "Deepseek-Cowork",
+    private: false
+
+  },
+"protocols: {
+    name: "deepseek-cowork",
+    schemes: ["deepseek-cowork"]
+  }
+}
